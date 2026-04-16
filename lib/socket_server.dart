@@ -48,6 +48,23 @@ class SystemDataService {
   }
 }
 
+  // ---------------------------     Request send template     ----------------------------------
+  // This is the template for any request sent to the other device
+
+  Map<String, dynamic> createRequest({
+  required String op,
+  required String action,
+  Map<String, dynamic>? args,
+  }) {
+    return {
+      "op": op,           // Operation type                    
+      "action": action,   // action to be taken
+      "args": args,        // arguments  
+      "id": DateTime.now().millisecondsSinceEpoch, // Sequence number
+    };
+  }
+
+
 // --------------------------------    Socket Class      -------------------------------------------------
  
 class SocketServer extends ChangeNotifier{
@@ -96,7 +113,8 @@ class SocketServer extends ChangeNotifier{
 
       notifyListeners();
       
-      final info = jsonEncode(data);
+      // Encode the request to send
+      final info = jsonEncode(createRequest(op: "sys_info", action: "get", args: data));
       
       // Send to the client
       if (_client != null) {
@@ -107,7 +125,7 @@ class SocketServer extends ChangeNotifier{
         }
       }
       
-      debugPrint("Status sent to client: ${data['name']} - ${data['battery']} - ${data['type']}");
+      debugPrint("Status sent to client: ${data['name']} - ${data['battery']} - ${data['isCharging']}");
     } catch (e) {
       debugPrint("Failed to send status to all: $e");
     } finally {
