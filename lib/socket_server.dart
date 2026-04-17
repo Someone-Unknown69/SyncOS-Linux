@@ -2,67 +2,24 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:device_info_plus/device_info_plus.dart';
-import 'package:battery_plus/battery_plus.dart';
+import 'services/handle_methods.dart';
 
-// ----------------------------------    System Information   --------------------------------------------
 
-class SystemDataService {
-  final DeviceInfoPlugin _deviceInfo = DeviceInfoPlugin();
-  final Battery _battery = Battery();
-
-  Future<Map<String, dynamic>> getFullDeviceStatus() async {
-    // Get Battery Data (Dynamic)
-    final int level = await _battery.batteryLevel;
-    final BatteryState state = await _battery.batteryState;
-    final bool charging = state == BatteryState.charging;
-
-    // Get Device Identity (Static)
-    Map<String, dynamic> common = {};
-    if (Platform.isLinux) {
-      LinuxDeviceInfo linuxInfo = await _deviceInfo.linuxInfo;
-      common = {
-        'name': linuxInfo.name,
-        'version': linuxInfo.versionId,
-        'id': linuxInfo.machineId,
-        'os': 'Linux',
-      };
-    } else if (Platform.isAndroid) {
-      AndroidDeviceInfo androidInfo = await _deviceInfo.androidInfo;
-      common = {
-        'name': androidInfo.model,
-        'version': androidInfo.version.release,
-        'id': androidInfo.id,
-        'os': 'Android',
-      };
-    }
-
-    // Merge everything into one response
-    return {
-      ...common,
-      'battery': level,
-      'isCharging': charging,
-      'timestamp': DateTime.now().millisecondsSinceEpoch,
-      'type': 'status'
-    };
-  }
+// ---------------------------      Request send template     --------------------------------------------
+// This is the template for any request sent to the other device
+Map<String, dynamic> createRequest({
+required String op,
+required String action,
+Map<String, dynamic>? args,
+}) {
+  return {
+    "op": op,           // Operation type                    
+    "action": action,   // action to be taken
+    "args": args,        // arguments  
+    "id": DateTime.now().millisecondsSinceEpoch, // Sequence number
+  };
 }
 
-  // ---------------------------     Request send template     ----------------------------------
-  // This is the template for any request sent to the other device
-
-  Map<String, dynamic> createRequest({
-  required String op,
-  required String action,
-  Map<String, dynamic>? args,
-  }) {
-    return {
-      "op": op,           // Operation type                    
-      "action": action,   // action to be taken
-      "args": args,        // arguments  
-      "id": DateTime.now().millisecondsSinceEpoch, // Sequence number
-    };
-  }
 
 
 // --------------------------------    Socket Class      -------------------------------------------------
@@ -93,7 +50,7 @@ class SocketServer extends ChangeNotifier{
   // ---------------------------    Data to send Periodicallyy    --------------------------------
   bool _isSending = false; // Semaphore
   
-  final SystemDataService _service = SystemDataService();
+  final SystemDataService _serviceSystemInfo = SystemDataService();
 
   Future<void> _sendStatusToAllClients() async {
     if (_isSending) return;
@@ -103,7 +60,7 @@ class SocketServer extends ChangeNotifier{
 
     try {
       // Fetch dynamic status (Identity + Battery)
-      final data = await _service.getFullDeviceStatus();
+      final data = await _serviceSystemInfo.getFullDeviceStatus();
       
       // Update local notifiers for UI
       batteryLevel.value = data['battery'];
@@ -198,7 +155,6 @@ class SocketServer extends ChangeNotifier{
       _client = _pendingSocket;
       connectedClients.value = 1;
       _setupSocketListeners(_pendingSocket!);
-      _sendStatus(_pendingSocket!);
       _pendingSocket = null;
       pendingClientIP.value = null;
       notifyListeners();
@@ -220,29 +176,6 @@ class SocketServer extends ChangeNotifier{
     }
   }
 
-  Future<void> _sendStatus(Socket socket) async {
-    try {
-      // Fetch dynamic status (Identity + Battery)
-      final data = await _service.getFullDeviceStatus();
-      
-      // Update local notifiers for UI
-      batteryLevel.value = data['battery'];
-      isCharging.value = data['isCharging'];
-      deviceName.value = data['name'];
-      notifyListeners();
-      
-      final info = jsonEncode(data);
-      
-      // Send with newline delimiter
-      socket.write("$info\n");
-      
-      debugPrint("Info sent: ${data['name']} - ${data['battery']}%");
-    } catch (e) {
-      debugPrint("Failed to send status: $e");
-    }
-  }
-
-
   // Method to handle incoming commands from clients
   void _handleCommand(String command, Socket socket) {
     debugPrint('Received command: $command');
@@ -263,7 +196,6 @@ class SocketServer extends ChangeNotifier{
       debugPrint("Unknown command: $command");
     }
   }
-
 
   // Method to stop the server
   void stopServer() {
