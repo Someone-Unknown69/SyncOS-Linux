@@ -3,7 +3,6 @@ import 'package:battery_plus/battery_plus.dart';
 import 'dart:io';
 import 'dart:async';
 
-
 // -------------------------------------    sys_info     -----------------------------------------------
 
 class SystemDataService {
@@ -46,5 +45,3 @@ class SystemDataService {
     };
   }
 }
-
-// -----------------------------------      Music       --------------------------------------------------

@@ -2,7 +2,14 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'services/handle_methods.dart';
+import 'services/sys_info.dart';
+import 'services/music.dart';
+
+
+// --------------------------------     Services       ---------------------------------------------------
+
+final SystemDataService _dataService = SystemDataService();
+final MediaPoller _mediaPoller = MediaPoller();
 
 
 // ---------------------------      Request send template     --------------------------------------------
@@ -21,7 +28,6 @@ Map<String, dynamic>? args,
 }
 
 
-
 // --------------------------------    Socket Class      -------------------------------------------------
  
 class SocketServer extends ChangeNotifier{
@@ -33,8 +39,16 @@ class SocketServer extends ChangeNotifier{
   Timer? _statusTimer;
   Socket? _pendingSocket;
 
+  // Defining media subscription
+  MediaInfo? _lastMediaInfo;
+  StreamSubscription<MediaInfo>? _mediaSubscription;
+
   // Defining where to connect the socket
-  SocketServer();
+  SocketServer() {
+    _mediaSubscription = _mediaPoller.mediaStream.listen((metadata) {
+      _lastMediaInfo = metadata;
+    });
+  }
   
   // ----------------------------  Client  Device Information    ---------------------------------
   final ValueNotifier<int> batteryLevel = ValueNotifier(0);
@@ -50,7 +64,6 @@ class SocketServer extends ChangeNotifier{
   // ---------------------------    Data to send Periodicallyy    --------------------------------
   bool _isSending = false; // Semaphore
   
-  final SystemDataService _serviceSystemInfo = SystemDataService();
 
   Future<void> _sendStatusToAllClients() async {
     if (_isSending) return;
@@ -60,29 +73,39 @@ class SocketServer extends ChangeNotifier{
 
     try {
       // Fetch dynamic status (Identity + Battery)
-      final data = await _serviceSystemInfo.getFullDeviceStatus();
+      final data = await _dataService.getFullDeviceStatus();
       
       // Update local notifiers for UI
       batteryLevel.value = data['battery'];
       isCharging.value = data['isCharging'];
       deviceName.value = data['name'];
-
-
       notifyListeners();
       
       // Encode the request to send
-      final info = jsonEncode(createRequest(op: "sys_info", action: "get", args: data));
-      
+      final info = jsonEncode(createRequest(op: "sys_info", action: "recv", args: data));
+      // final musicStatus = jsonEncode(createRequest(op: "music", action: "recv"), args: )
+
       // Send to the client
       if (_client != null) {
         try {
           _client!.write("$info\n");
+
+            if (_lastMediaInfo != null) {
+            final musicInfoJson = jsonEncode(createRequest(
+              op: "music", 
+              action: "recv", 
+              args: _lastMediaInfo!.toMap()
+            ));
+            _client!.write("$musicInfoJson\n");
+          }
+
         } catch (e) {
           debugPrint("Failed to send to client: $e");
         }
       }
       
       debugPrint("Status sent to client: ${data['name']} - ${data['battery']} - ${data['isCharging']}");
+      debugPrint("music info sent ${_lastMediaInfo?.title}");
     } catch (e) {
       debugPrint("Failed to send status to all: $e");
     } finally {
@@ -102,7 +125,9 @@ class SocketServer extends ChangeNotifier{
       connectionStatus.value = true;
       debugPrint('Server started successfully');
 
-      _statusTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+      _mediaPoller.start();
+
+      _statusTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
         _sendStatusToAllClients();
       });
 
@@ -216,6 +241,8 @@ class SocketServer extends ChangeNotifier{
 
     _server?.close();
     _server = null;
+    _mediaSubscription?.cancel();
+    _mediaPoller.stop();
     connectionStatus.value = false;
     debugPrint("Server stopped.");
   }

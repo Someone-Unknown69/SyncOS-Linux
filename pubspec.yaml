@@ -36,6 +36,9 @@ dependencies:
   cupertino_icons: ^1.0.8
   device_info_plus: ^13.0.0
   battery_plus: ^7.0.0
+  dbus: ^0.7.12
+  audio_service: ^0.18.18
+  audio_service_mpris: ^0.2.1
 
 dev_dependencies:
   flutter_test:
