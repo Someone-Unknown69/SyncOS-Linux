@@ -39,6 +39,8 @@ dependencies:
   dbus: ^0.7.12
   audio_service: ^0.18.18
   audio_service_mpris: ^0.2.1
+  watcher: ^1.2.1
+  image: ^4.8.0
 
 dev_dependencies:
   flutter_test:

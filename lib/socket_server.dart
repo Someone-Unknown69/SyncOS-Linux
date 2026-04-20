@@ -2,30 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'services/sys_info.dart';
 import 'services/music.dart';
-
-
-// --------------------------------     Services       ---------------------------------------------------
-
-final SystemDataService _dataService = SystemDataService();
-final MediaPoller _mediaPoller = MediaPoller();
-
-
-// ---------------------------      Request send template     --------------------------------------------
-// This is the template for any request sent to the other device
-Map<String, dynamic> createRequest({
-required String op,
-required String action,
-Map<String, dynamic>? args,
-}) {
-  return {
-    "op": op,           // Operation type                    
-    "action": action,   // action to be taken
-    "args": args,        // arguments  
-    "id": DateTime.now().millisecondsSinceEpoch, // Sequence number
-  };
-}
+import 'services/battery_info.dart';
 
 
 // --------------------------------    Socket Class      -------------------------------------------------
@@ -36,86 +14,37 @@ class SocketServer extends ChangeNotifier{
   final ValueNotifier<bool> connectionStatus = ValueNotifier<bool>(false);
   final _messageController = StreamController<String>.broadcast();
   Socket? _client;
-  Timer? _statusTimer;
   Socket? _pendingSocket;
 
-  // Defining media subscription
-  MediaInfo? _lastMediaInfo;
-  StreamSubscription<MediaInfo>? _mediaSubscription;
-
-  // Defining where to connect the socket
-  SocketServer() {
-    _mediaSubscription = _mediaPoller.mediaStream.listen((metadata) {
-      _lastMediaInfo = metadata;
-    });
+  // This is the template for any request sent to the other device
+  Map<String, dynamic> createRequest({
+    required String op,
+    Map<String, dynamic>? args,
+  }) {
+    return {
+      "op": op,           // Operation type                    
+      "args": args,        // arguments  
+      "id": DateTime.now().millisecondsSinceEpoch, // Sequence number
+    };
   }
+
+
+  // --------------------------------     Services       ----------------------------------------
+  final MediaPoller _mediaPoller = MediaPoller();
+  final BatteryMonitorServiceLinux _batteryMonitorServiceLinux = BatteryMonitorServiceLinux();
   
+
   // ----------------------------  Client  Device Information    ---------------------------------
-  final ValueNotifier<int> batteryLevel = ValueNotifier(0);
-  final ValueNotifier<int> latency = ValueNotifier<int>(0); // Not applicable for server
   final ValueNotifier<String>  deviceName = ValueNotifier<String>(Platform.localHostname);
-  final ValueNotifier<bool> isCharging = ValueNotifier<bool>(false); // Static
   final ValueNotifier<int> connectedClients = ValueNotifier<int>(0);
   final ValueNotifier<String?> pendingClientIP = ValueNotifier<String?>(null);
+
 
   // ---------------------------------    Getters    -------------------------------------------- 
   Stream<String> get messageStream => _messageController.stream;
 
-  // ---------------------------    Data to send Periodicallyy    --------------------------------
-  bool _isSending = false; // Semaphore
-  
-
-  Future<void> _sendStatusToAllClients() async {
-    if (_isSending) return;
-
-    // debugPrint("Sending periodic status update");
-    _isSending = true;
-
-    try {
-      // Fetch dynamic status (Identity + Battery)
-      final data = await _dataService.getFullDeviceStatus();
-      
-      // Update local notifiers for UI
-      batteryLevel.value = data['battery'];
-      isCharging.value = data['isCharging'];
-      deviceName.value = data['name'];
-      notifyListeners();
-      
-      // Encode the request to send
-      final info = jsonEncode(createRequest(op: "sys_info", action: "recv", args: data));
-      // final musicStatus = jsonEncode(createRequest(op: "music", action: "recv"), args: )
-
-      // Send to the client
-      if (_client != null) {
-        try {
-          _client!.write("$info\n");
-
-            if (_lastMediaInfo != null) {
-            final musicInfoJson = jsonEncode(createRequest(
-              op: "music", 
-              action: "recv", 
-              args: _lastMediaInfo!.toMap()
-            ));
-            _client!.write("$musicInfoJson\n");
-          }
-
-        } catch (e) {
-          debugPrint("Failed to send to client: $e");
-        }
-      }
-      
-      debugPrint("Status sent to client: ${data['name']} - ${data['battery']} - ${data['isCharging']}");
-      debugPrint("music info sent ${_lastMediaInfo?.title}");
-    } catch (e) {
-      debugPrint("Failed to send status to all: $e");
-    } finally {
-      _isSending = false;
-    }
-  }
-
 
   // --------------------------------     Methods    --------------------------------------------
-
   // Asynchronous method to start server and listen for connections
   Future<void> startServer(int port) async{
     try {
@@ -124,12 +53,6 @@ class SocketServer extends ChangeNotifier{
 
       connectionStatus.value = true;
       debugPrint('Server started successfully');
-
-      _mediaPoller.start();
-
-      _statusTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-        _sendStatusToAllClients();
-      });
 
       _server!.listen((Socket socket) {
         debugPrint('Client attempting to connect: ${socket.remoteAddress.address}:${socket.remotePort}');
@@ -140,6 +63,7 @@ class SocketServer extends ChangeNotifier{
         }
         _pendingSocket = socket;
         pendingClientIP.value = socket.remoteAddress.address;
+
         notifyListeners();
       });
 
@@ -149,41 +73,56 @@ class SocketServer extends ChangeNotifier{
     }
   }
 
-  // Setting up the socket listner to get client's data
+  // Method to send requests to client
+  void send(String op, Map<String, dynamic> args) {
+    if (_client == null) return;
+
+    try {
+      final request = {
+        "op": op,
+        "args": args,
+        "id": DateTime.now().millisecondsSinceEpoch,
+      };
+
+      _client!.write('${jsonEncode(request)}\n');
+      _client!.flush();
+    } catch (e) {
+      debugPrint('Send error: $e');
+      _handleDisconnect();
+    }
+  }
+
+  // Setting up the socket listner to get client's requests
   void _setupSocketListeners(Socket socket) {
-    socket.cast<List<int>>()
-    .transform(utf8.decoder)
-    .listen(
-      (String data) {
-        _handleCommand(data.trim(), socket);
-      },
-      onError: (e){
-        debugPrint('Error from client: $e');
-      },
-      onDone: () {
-        debugPrint('Client disconnected: ${socket.remoteAddress.address}:${socket.remotePort}');
-        _client = null;
-        connectedClients.value = 0;
-        notifyListeners();
-      },
+    socket.cast<List<int>>().transform(utf8.decoder).listen(
+      (String data) => _handleCommand(data.trim(), socket),
+      onDone: () => _handleDisconnect(),
+      onError: (e) => _handleDisconnect(),
     );
   }
 
-  void acceptConnection() {
-    if (_pendingSocket != null) {
-      try {
-        _pendingSocket!.write('ACCEPTED\n');
-        _pendingSocket!.flush();
-      } catch (e) {
-        debugPrint('Failed to send accept response: $e');
-      }
-      _client = _pendingSocket;
-      connectedClients.value = 1;
-      _setupSocketListeners(_pendingSocket!);
-      _pendingSocket = null;
-      pendingClientIP.value = null;
-      notifyListeners();
+ // Change return type to Future<void> and add async
+  Future<void> acceptConnection() async { 
+    if (_pendingSocket == null) return;
+
+    _client = _pendingSocket;
+    _pendingSocket = null;
+    pendingClientIP.value = null;
+    connectedClients.value = 1;
+
+    try {
+      _client!.write('ACCEPTED\n');
+      await _client!.flush(); 
+    } catch (e) {
+      debugPrint('Handshake failed: $e');
     }
+
+    _setupSocketListeners(_client!);
+    
+    _mediaPoller.start(send);
+    _batteryMonitorServiceLinux.start(send); 
+
+    notifyListeners();
   }
 
   void rejectConnection() {
@@ -224,41 +163,21 @@ class SocketServer extends ChangeNotifier{
 
   // Method to stop the server
   void stopServer() {
-    _statusTimer?.cancel();
-    _statusTimer = null;
-
-    if (_pendingSocket != null) {
-      _pendingSocket!.close();
-      _pendingSocket = null;
-      pendingClientIP.value = null;
-    }
-
-    if (_client != null) {
-      _client!.destroy();
-      _client = null;
-      connectedClients.value = 0;
-    }
-
+    _handleDisconnect();
     _server?.close();
-    _server = null;
-    _mediaSubscription?.cancel();
-    _mediaPoller.stop();
     connectionStatus.value = false;
-    debugPrint("Server stopped.");
   }
 
+  // Kill the server and close
+  void _handleDisconnect() {
+    _mediaPoller.dispose();
+    _batteryMonitorServiceLinux.dispose();
 
-  // Method to send data to the client
-  void send(String str) {
-    if (_client != null) {
-      try {
-        _client!.write("$str\n");
-      } catch (e) {
-        debugPrint('Error sending to client: $e');
-      }
-    }
+    _client?.destroy();
+    _client = null;
+    connectedClients.value = 0;
+    notifyListeners();
   }
 
 }
-
 

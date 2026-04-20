@@ -43,12 +43,6 @@ ThemeData _buildTheme(Brightness brightness) {
         borderRadius: BorderRadius.circular(12),
       ),
     ),
-    // Global styling for all Cards
-    // cardTheme: CardTheme(
-    //   shape: RoundedRectangleBorder(
-    //     borderRadius: BorderRadius.circular(20),
-    //   ),
-    // ),
   );
 }
 
@@ -199,9 +193,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                     imagePath: 'assets/images/album2.png',
                                     trackName: "We Don't Talk Anymore",
                                     artistName: "Charlie Puth & Selena Gomez",
-                                    onPlay: () => client.send('PLAY'),
-                                    onPrev: () => client.send('PREV'),
-                                    onNext: () => client.send('NEXT')
+                                    onPlay: () => {},
+                                    onPrev: () => {},
+                                    onNext: () => {},
                                   ),
 
                                   const SizedBox(height: _spacing),
@@ -304,7 +298,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
                 // Displays device name
                 ValueListenableBuilder(
-                  valueListenable: client.deviceName, 
+                  valueListenable: client.connectedClients, 
                   builder: (context, name, child) {
                     return Text("Device: $name");
                   }
@@ -337,7 +331,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
                 // Ping button (for testing)
                 FilledButton.icon(
-                  onPressed: () => client.send('PING'),
+                  onPressed: () => {},
                   icon: const Icon(Icons.network_ping_rounded),
                   label: const Text("Ping Clients"),
                   style: FilledButton.styleFrom(
