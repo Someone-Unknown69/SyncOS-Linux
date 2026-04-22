@@ -1,7 +1,10 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'socket_server.dart';
 import 'dart:io';
 import 'music_player.dart';
+import 'pairing_service.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 class DashboardItem {
   final String label;
@@ -75,9 +78,9 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
 
   // Controllers / We can say variables
-  final  int _port = 9999; // Default is always 9999
-  final SocketServer client = SocketServer();
-  bool isConnected = false;
+  final int _port = 9999; // Default is always 9999
+  late final PairingService _pairingService;
+  late final SocketServer client;
 
   // Customization for UI
   static const double _borderRadius = 20;       // Can be used to change border radius
@@ -103,12 +106,23 @@ class _HomeScreenState extends State<HomeScreen> {
     ),
   ];
 
-  late String _localIP = 'Loading...';
+  String _localIP = 'Loading...';
+  bool _isInitializing = true;
 
   @override
   void initState() {
     super.initState();
-    _getLocalIP();
+    _pairingService = PairingService(port: _port);
+    client = SocketServer(pairingService: _pairingService);
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    await _getLocalIP();
+    await _pairingService.initialize();
+    setState(() {
+      _isInitializing = false;
+    });
   }
 
   Future<void> _getLocalIP() async {
@@ -117,14 +131,14 @@ class _HomeScreenState extends State<HomeScreen> {
       for (var interface in interfaces) {
         for (var addr in interface.addresses) {
           if (addr.type == InternetAddressType.IPv4 && !addr.isLoopback) {
-            setState(() => _localIP = addr.address);
+            _localIP = addr.address;
             return;
           }
         }
       }
-      setState(() => _localIP = 'No IP found');
+      _localIP = 'No IP found';
     } catch (e) {
-      setState(() => _localIP = 'Error: $e');
+      _localIP = 'Error: $e';
     }
   }
 
@@ -143,6 +157,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isInitializing) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     //GestureDetector handles tapping "empty space" to hide keyboard
     return GestureDetector(
       onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
@@ -191,8 +211,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                 children: [
                                   MusicPlayerWidget(
                                     imagePath: 'assets/images/album2.png',
-                                    trackName: "We Don't Talk Anymore",
-                                    artistName: "Charlie Puth & Selena Gomez",
+                                    trackName: "Music Control",
+                                    artistName: "Waiting for playback...",
                                     onPlay: () => {},
                                     onPrev: () => {},
                                     onNext: () => {},
@@ -203,7 +223,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ],
                               );
                             }
-                            return const SizedBox.shrink();
+                            return _qrCodeCard();
                           },
                         ),
                       ] else  
@@ -214,6 +234,54 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _qrCodeCard() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
+    final qrData = jsonEncode({
+      "ip": _localIP,
+      "port": _port,
+      "http_port": _port + 1,
+      "token": _pairingService.pairingToken,
+    });
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(_borderRadius),
+        side: BorderSide(color: colorScheme.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(_padding),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            const Text(
+              "Scan to Pair",
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            const SizedBox(height: _spacing),
+            Container(
+              color: Colors.white,
+              padding: const EdgeInsets.all(8),
+              child: QrImageView(
+                data: qrData,
+                version: QrVersions.auto,
+                size: 200.0,
+                backgroundColor: Colors.white,
+              ),
+            ),
+            const SizedBox(height: _spacing),
+            Text(
+              "Waiting for client connection...",
+              style: TextStyle(color: colorScheme.onSurfaceVariant),
+            ),
+          ],
         ),
       ),
     );
@@ -244,6 +312,7 @@ class _HomeScreenState extends State<HomeScreen> {
             
             Text("Server IP: $_localIP"),
             Text("Port: $_port"),
+            Text("HTTP Port: ${_port + 1}"),
             
             const SizedBox(height: _spacing),
 

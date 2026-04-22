@@ -41,6 +41,11 @@ dependencies:
   audio_service_mpris: ^0.2.1
   watcher: ^1.2.1
   image: ^4.8.0
+  shelf: ^1.4.2
+  shelf_router: ^1.1.4
+  path: ^1.9.1
+  qr_flutter: ^4.1.0
+  shared_preferences: ^2.5.5
 
 dev_dependencies:
   flutter_test:
