@@ -221,6 +221,7 @@ class SocketServer extends ChangeNotifier{
         }
         return;
       }
+      debugPrint('Received command: $command');
 
       if (data['op'] == 'seek') {
         final pos = data['args']?['position'];
@@ -230,8 +231,8 @@ class SocketServer extends ChangeNotifier{
         return;
       }
 
-      if (data['op'] == 'music_control') {
-        final action = data['args']?['action'];
+      if (data['op'] == 'music_controls') {
+        final action = data['action'];
         if (action != null) {
           _mediaPoller.control(action);
         }
@@ -242,7 +243,6 @@ class SocketServer extends ChangeNotifier{
       // Not JSON or plain string command
     }
 
-    debugPrint('Received command: $command');
     if (command == "PING") {
       _sendRaw("PONG");
     } else if (command == "PLAY") {

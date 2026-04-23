@@ -47,6 +47,7 @@ class MediaPoller {
   final List<StreamSubscription> _subscriptions = [];
   MediaInfo? _lastInfo; // Dirty cache tracker
   String _lastArtUrl = "";
+  String? _activePlayerName;
 
   Future<void> start(void Function(String op, Map<String, dynamic> args) onSend) async {
     if (_client != null) return; // Already running
@@ -80,86 +81,59 @@ class MediaPoller {
     _updateMetadata(name, onSend);
   }
 
-  Future<String> _getAlbumArtBase64(String artUrl) async {
-    if (artUrl.isEmpty) return "";
-    
-    try {
-      Uint8List? bytes;
-
-      if (artUrl.startsWith('file://')) {
-        final filePath = Uri.decodeFull(artUrl.replaceFirst('file://', ''));
-        final file = File(filePath);
-        if (!await file.exists()) return "";
-        bytes = await file.readAsBytes();
-      } else if (artUrl.startsWith('http://') || artUrl.startsWith('https://')) {
-        final httpClient = HttpClient();
-        final request = await httpClient.getUrl(Uri.parse(artUrl));
-        final response = await request.close();
-        if (response.statusCode == 200) {
-          final builder = BytesBuilder();
-          await response.forEach(builder.add);
-          bytes = builder.toBytes();
-        } else {
-          return "";
-        }
-      } else {
-        return "";
-      }
-
-      final image = img.decodeImage(bytes);
-      if (image == null) return "";
-
-      final thumbnail = img.copyResize(image, width: 200, height: 200);
-      final jpg = img.encodeJpg(thumbnail, quality: 75);
-      
-      return base64Encode(jpg);
-    } catch (e) {
-      debugPrint("Image processing error: $e");
-      return "";
-    }
-  }
-
   Future<void> _updateMetadata(String name, void Function(String op, Map<String, dynamic> args) onSend) async {
     final object = _players[name];
     if (object == null) return;
 
     try {
-      // Fetch properties with individual error handling
       final meta = await object.getProperty('org.mpris.MediaPlayer2.Player', 'Metadata');
       final status = await object.getProperty('org.mpris.MediaPlayer2.Player', 'PlaybackStatus');
       final pos = await object.getProperty('org.mpris.MediaPlayer2.Player', 'Position');
 
-      final data = meta.asStringVariantDict();
-      final artUrl = await _getAlbumArtBase64(data['mpris:artUrl']?.asString() ?? '');
+      if (status.asString() == 'Playing') {
+        _activePlayerName = name;
+      }
 
+      final data = meta.asStringVariantDict();
+      final rawArtUrl = data['mpris:artUrl']?.asString() ?? '';
+      String processedArtBase64 = "";
+
+      // Only fetch/process if the URL has actually changed
+      if (rawArtUrl.isNotEmpty && rawArtUrl != _lastArtUrl) {
+        final bytes = await _fetchRawBytes(rawArtUrl);
+        if (bytes != null) {
+          processedArtBase64 = await compute(_processAlbumArt, bytes);
+          _lastArtUrl = rawArtUrl; // Update tracker with the new URL
+        } else {
+          debugPrint("Poller: Failed to fetch bytes for: $rawArtUrl");
+        }
+      }
+
+      // Construct Info
       final newInfo = MediaInfo(
         status: status.asString(),
         title: data['xesam:title']?.asString() ?? 'Unknown',
         album: data['xesam:album']?.asString() ?? 'Unknown',
         artist: data['xesam:artist']?.asStringArray().join(', ') ?? 'Unknown Artist',
-        duration: (data['mpris:length']?.asInt64() ?? 0) ~/ 1000000,
-        position: (pos.asInt64()) ~/ 1000000, 
+        duration: safeExtractInt(data['mpris:length']) ~/ 1000000,
+        position: safeExtractInt(pos) ~/ 1000000,
         volume: 0.0,
       );
 
-      // Dirty Cache Check (Send even if Unknown, to clear UI on start)
-      bool artChanged = artUrl != _lastArtUrl;
-
-      if (!newInfo.isSameAs(_lastInfo) || artChanged) {
+      // Send Updates
+      // Always check info change
+      if (!newInfo.isSameAs(_lastInfo)) {
         _lastInfo = newInfo;
-        _lastArtUrl = artUrl;
-        
         onSend('music', newInfo.toMap());
-        
-        if (artUrl.isNotEmpty) {
-          onSend('albumArt_internal', {'albumArt': artUrl});
-          if (artChanged) {
-            onSend('fetch_art', {});
-          }
-        }
-        
-        debugPrint("Data updated and sent: ${newInfo.title}");
       }
+
+      // Send image update only if we processed a new one
+      if (processedArtBase64.isNotEmpty) {
+        onSend('albumArt_internal', {'albumArt': processedArtBase64});
+        onSend('fetch_art', {}); // Trigger fetch event
+      }
+
+      debugPrint("Data updated: ${newInfo.title}");
 
     } catch (e) {
       debugPrint("Info unavailable (likely song transition): $e");
@@ -167,50 +141,59 @@ class MediaPoller {
   }
 
   Future<void> seek(int positionSeconds) async {
-    for (var name in _players.keys) {
-      try {
-        final object = _players[name];
-        if (object != null) {
-          final meta = await object.getProperty('org.mpris.MediaPlayer2.Player', 'Metadata');
-          final data = meta.asStringVariantDict();
-          final trackId = data['mpris:trackid']?.asObjectPath();
-          if (trackId != null) {
-            await object.callMethod(
-              'org.mpris.MediaPlayer2.Player',
-              'SetPosition',
-              [DBusObjectPath(trackId.value), DBusInt64(positionSeconds * 1000000)],
-            );
-            debugPrint("Seeked $name to $positionSeconds");
-          }
-        }
-      } catch (e) {
-        debugPrint("Failed to seek player $name: $e");
+    final targetName = _activePlayerName ?? _players.keys.firstOrNull;
+    final targetPlayer = _players[targetName];
+
+    if (targetPlayer == null) return;
+
+    try {
+      final meta = await targetPlayer.getProperty('org.mpris.MediaPlayer2.Player', 'Metadata');
+      final data = meta.asStringVariantDict();
+      
+      final trackIdValue = data['mpris:trackid'];
+      DBusObjectPath? trackIdPath;
+
+      // handling both possible types for trackIdValue
+      // spotify sends string insetad of DBusObjectPath
+      if (trackIdValue is DBusObjectPath) {
+        trackIdPath = trackIdValue;
+      } else if (trackIdValue is DBusString) {
+        trackIdPath = DBusObjectPath(trackIdValue.value);
       }
+
+      if (trackIdPath != null) {
+        await targetPlayer.callMethod(
+          'org.mpris.MediaPlayer2.Player',
+          'SetPosition',
+          [trackIdPath, DBusInt64(positionSeconds * 1000000)],
+        );
+        debugPrint("Seeked $targetName to $positionSeconds");
+      } else {
+        debugPrint("Could not determine track ID for seeking.");
+      }
+    } catch (e) {
+      debugPrint("Failed to seek player $targetName: $e");
     }
   }
 
   Future<void> control(String action) async {
-    for (var name in _players.keys) {
-      try {
-        final object = _players[name];
-        if (object != null) {
-          String method = '';
-          if (action == 'next') method = 'Next';
-          else if (action == 'previous') method = 'Previous';
-          else if (action == 'play_pause') method = 'PlayPause';
-          
-          if (method.isNotEmpty) {
-            await object.callMethod(
-              'org.mpris.MediaPlayer2.Player',
-              method,
-              [],
-            );
-            debugPrint("Sent $method to $name");
-          }
-        }
-      } catch (e) {
-        debugPrint("Failed to send $action to player $name: $e");
-      }
+    // Use the cached player
+    final targetName = _activePlayerName ?? _players.keys.firstOrNull;
+    final targetPlayer = _players[targetName];
+
+    if (targetPlayer == null) return;
+
+    try {
+      String method = '';
+      if (action == 'next') {method = 'Next';}
+      else if (action == 'previous') {method = 'Previous';}
+      else if (action == 'play_pause') {method = 'PlayPause';}
+
+      await targetPlayer.callMethod('org.mpris.MediaPlayer2.Player', method, []);
+      debugPrint("Sent $method to $targetName");
+    } catch (e) {
+      debugPrint("Failed to send $action: $e");
+      _activePlayerName = null;
     }
   }
 
@@ -225,4 +208,54 @@ class MediaPoller {
     _lastInfo = null;
     _lastArtUrl = "";
   }
+
+  // helper function to support multple dbus types
+  int safeExtractInt(DBusValue? value) {
+    if (value == null) return 0;
+    if (value is DBusInt64) return value.value;
+    if (value is DBusUint64) return value.value;
+    if (value is DBusInt32) return value.value;
+    if (value is DBusUint32) return value.value;
+    return 0;
+  }
+}
+
+Future<Uint8List?> _fetchRawBytes(String artUrl) async {
+  try {
+    if (artUrl.startsWith('file://')) {
+      final file = File(Uri.decodeFull(artUrl.replaceFirst('file://', '')));
+      return await file.readAsBytes();
+    } else if (artUrl.startsWith('http')) {
+      final response = await HttpClient().getUrl(Uri.parse(artUrl)).then((r) => r.close());
+      if (response.statusCode == 200) {
+        final builder = BytesBuilder();
+        await response.forEach(builder.add);
+        return builder.toBytes();
+      }
+    }
+  } catch (e) {
+    debugPrint("Failed to fetch art bytes: $e");
+  }
+  return null;
+}
+
+Future<String> _processAlbumArt(Uint8List bytes) async {
+  return await compute((Uint8List raw) {
+    final image = img.decodeImage(raw);
+    if (image == null) {
+        debugPrint("Isolate: Image decoding failed"); 
+        return "";
+    }
+    // debugPrint("Isolate: Received ${raw.length} bytes.");
+    
+    final thumbnail = img.copyResize(image, 
+      width: 200, 
+      interpolation: img.Interpolation.average
+    );
+
+    
+    final jpg = img.encodeJpg(thumbnail, quality: 100);
+    // debugPrint("Isolate: Successfully encoded, length: ${jpg.length}");
+    return base64Encode(jpg);
+  }, bytes);
 }

@@ -188,20 +188,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         _statusConnected(),
                         const SizedBox(height: _spacing),
 
-                        ValueListenableBuilder<String?>(
-                          valueListenable: client.pendingClientIP,
-                          builder: (context, pendingIP, child) {
-                            if (pendingIP != null) {
-                              return Column(
-                                children: [
-                                  _pendingConnectionCard(pendingIP),
-                                  const SizedBox(height: _spacing),
-                                ],
-                              );
-                            }
-                            return const SizedBox.shrink();
-                          },
-                        ),
+
 
                         ValueListenableBuilder<int>(
                           valueListenable: client.connectedClients,
@@ -511,51 +498,6 @@ class _HomeScreenState extends State<HomeScreen> {
       );
   }
 
-  Widget _pendingConnectionCard(String ip) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
 
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(_borderRadius),
-        side: BorderSide(color: colorScheme.outlineVariant),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(_padding),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text(
-              "Incoming Connection",
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-            const SizedBox(height: _spacing),
-            Text("Client IP: $ip"),
-            const SizedBox(height: _spacing),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                FilledButton.icon(
-                  onPressed: () => client.rejectConnection(),
-                  icon: const Icon(Icons.close),
-                  label: const Text("Reject"),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Colors.red,
-                    foregroundColor: colorScheme.surfaceBright,
-                  ),
-                ),
-                FilledButton.icon(
-                  onPressed: () => client.acceptConnection(),
-                  icon: const Icon(Icons.check),
-                  label: const Text("Accept"),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
