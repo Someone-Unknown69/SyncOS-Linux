@@ -46,7 +46,10 @@ class MediaPoller {
   final Map<String, DBusRemoteObject> _players = {};
   final List<StreamSubscription> _subscriptions = [];
   MediaInfo? _lastInfo; // Dirty cache tracker
-  String _lastArtUrl = "";
+
+  // Per-player art URL cache so switching players always re-sends art
+  final Map<String, String> _lastArtUrlPerPlayer = {};
+
   String? _activePlayerName;
 
   Future<void> start(void Function(String op, Map<String, dynamic> args) onSend) async {
@@ -59,6 +62,40 @@ class MediaPoller {
       for (final name in names.where((n) => n.startsWith('org.mpris.MediaPlayer2.'))) {
         _monitorPlayer(name, onSend);
       }
+
+      // FIX #3: Watch for new players appearing / old players disappearing on D-Bus
+      final nameOwnerSub = DBusSignalStream(
+        _client!,
+        sender: 'org.freedesktop.DBus',
+        interface: 'org.freedesktop.DBus',
+        name: 'NameOwnerChanged',
+      ).listen((signal) {
+        if (signal.values.length < 3) return;
+        final serviceName = (signal.values[0] as DBusString).value;
+        final newOwner   = (signal.values[2] as DBusString).value;
+
+        if (!serviceName.startsWith('org.mpris.MediaPlayer2.')) return;
+
+        if (newOwner.isNotEmpty) {
+          // A new MPRIS player just appeared
+          debugPrint('New player detected: $serviceName');
+          _monitorPlayer(serviceName, onSend);
+        } else {
+          // A player just exited
+          debugPrint('Player exited: $serviceName');
+          _players.remove(serviceName);
+          _lastArtUrlPerPlayer.remove(serviceName);
+          if (_activePlayerName == serviceName) {
+            // Reset active player — the next PropertiesChanged event from a
+            // remaining Playing player will automatically claim the slot.
+            _activePlayerName = null;
+            _lastInfo = null; // force a fresh push when the next player takes over
+            debugPrint('Active player removed; waiting for next active player.');
+          }
+        }
+      });
+      _subscriptions.add(nameOwnerSub);
+
     } catch (e) {
       debugPrint("Failed to start DBus client: $e");
     }
@@ -66,6 +103,10 @@ class MediaPoller {
 
   void _monitorPlayer(String name, void Function(String op, Map<String, dynamic> args) onSend) {
     if (_client == null) return;
+    if (_players.containsKey(name)) return; // Already monitoring
+    
+    // Ensure we start with a fresh art fetch for this player when it first becomes active
+    _lastArtUrlPerPlayer.remove(name);
     
     final object = DBusRemoteObject(_client!, name: name, path: DBusObjectPath('/org/mpris/MediaPlayer2'));
     _players[name] = object;
@@ -86,24 +127,63 @@ class MediaPoller {
     if (object == null) return;
 
     try {
-      final meta = await object.getProperty('org.mpris.MediaPlayer2.Player', 'Metadata');
+      final meta   = await object.getProperty('org.mpris.MediaPlayer2.Player', 'Metadata');
       final status = await object.getProperty('org.mpris.MediaPlayer2.Player', 'PlaybackStatus');
-      final pos = await object.getProperty('org.mpris.MediaPlayer2.Player', 'Position');
+      final pos    = await object.getProperty('org.mpris.MediaPlayer2.Player', 'Position');
 
-      if (status.asString() == 'Playing') {
-        _activePlayerName = name;
+      final statusStr = status.asString();
+
+      // FIX #1: Properly track the active player.
+      // A player that starts Playing always becomes active.
+      // A player that stops should only clear the active slot if it *was* active.
+      if (_activePlayerName != name) {
+        // A player becomes active if it starts 'Playing' OR if no player is currently active.
+        if (statusStr == 'Playing' || _activePlayerName == null) {
+          debugPrint('Active player switched/assigned: $_activePlayerName → $name');
+          
+          // Reset dirty cache so the new player's state is always pushed
+          _lastInfo = null;
+          
+          // Force art re-fetch for the newly active player by clearing its cached URL.
+          // This ensures that even if this player was monitored in the background 
+          // previously, its art is re-sent to the client now that it is active.
+          _lastArtUrlPerPlayer.remove(name);
+          
+          _activePlayerName = name;
+        }
       }
+
+      if (_activePlayerName == name && statusStr != 'Playing') {
+        // The currently active player paused/stopped. Look for another playing player.
+        // We don't clear _activePlayerName immediately — we let it stay so controls
+        // still work until another player takes over. But we do stop pushing its
+        // stale state as "the" update.
+      }
+
+      // FIX #2: Only push updates to the client when this player is (or has become) active.
+      // We still need to process the event to detect play/pause switches above, but
+      // we skip sending the data if this is a background (non-active) player.
+      final isActive = (_activePlayerName == name) || (_activePlayerName == null);
+
+      if (!isActive) {
+        debugPrint('Ignoring update from background player: $name (active: $_activePlayerName)');
+        return;
+      }
+
+      // --- From here on, we are handling the active player ---
 
       final data = meta.asStringVariantDict();
       final rawArtUrl = data['mpris:artUrl']?.asString() ?? '';
       String processedArtBase64 = "";
 
-      // Only fetch/process if the URL has actually changed
-      if (rawArtUrl.isNotEmpty && rawArtUrl != _lastArtUrl) {
+      // FIX #4: Use per-player art URL cache so switching players always re-sends art
+      final lastArtUrlForThisPlayer = _lastArtUrlPerPlayer[name] ?? '';
+
+      if (rawArtUrl.isNotEmpty && rawArtUrl != lastArtUrlForThisPlayer) {
         final bytes = await _fetchRawBytes(rawArtUrl);
         if (bytes != null) {
           processedArtBase64 = await compute(_processAlbumArt, bytes);
-          _lastArtUrl = rawArtUrl; // Update tracker with the new URL
+          _lastArtUrlPerPlayer[name] = rawArtUrl;
         } else {
           debugPrint("Poller: Failed to fetch bytes for: $rawArtUrl");
         }
@@ -111,7 +191,7 @@ class MediaPoller {
 
       // Construct Info
       final newInfo = MediaInfo(
-        status: status.asString(),
+        status: statusStr,
         title: data['xesam:title']?.asString() ?? 'Unknown',
         album: data['xesam:album']?.asString() ?? 'Unknown',
         artist: data['xesam:artist']?.asStringArray().join(', ') ?? 'Unknown Artist',
@@ -121,7 +201,6 @@ class MediaPoller {
       );
 
       // Send Updates
-      // Always check info change
       if (!newInfo.isSameAs(_lastInfo)) {
         _lastInfo = newInfo;
         onSend('music', newInfo.toMap());
@@ -133,10 +212,10 @@ class MediaPoller {
         onSend('fetch_art', {}); // Trigger fetch event
       }
 
-      debugPrint("Data updated: ${newInfo.title}");
+      debugPrint("Data updated from active player [$name]: ${newInfo.title} (${newInfo.status})");
 
     } catch (e) {
-      debugPrint("Info unavailable (likely song transition): $e");
+      debugPrint("Info unavailable (likely song transition) for $name: $e");
     }
   }
 
@@ -154,7 +233,7 @@ class MediaPoller {
       DBusObjectPath? trackIdPath;
 
       // handling both possible types for trackIdValue
-      // spotify sends string insetad of DBusObjectPath
+      // spotify sends string instead of DBusObjectPath
       if (trackIdValue is DBusObjectPath) {
         trackIdPath = trackIdValue;
       } else if (trackIdValue is DBusString) {
@@ -203,13 +282,14 @@ class MediaPoller {
     }
     _subscriptions.clear();
     _players.clear();
+    _lastArtUrlPerPlayer.clear();
     _client?.close();
     _client = null;
     _lastInfo = null;
-    _lastArtUrl = "";
+    _activePlayerName = null;
   }
 
-  // helper function to support multple dbus types
+  // helper function to support multiple dbus types
   int safeExtractInt(DBusValue? value) {
     if (value == null) return 0;
     if (value is DBusInt64) return value.value;
@@ -246,16 +326,14 @@ Future<String> _processAlbumArt(Uint8List bytes) async {
         debugPrint("Isolate: Image decoding failed"); 
         return "";
     }
-    // debugPrint("Isolate: Received ${raw.length} bytes.");
     
     final thumbnail = img.copyResize(image, 
       width: 200, 
-      interpolation: img.Interpolation.average
+      interpolation: img.Interpolation.average,
     );
 
     
     final jpg = img.encodeJpg(thumbnail, quality: 100);
-    // debugPrint("Isolate: Successfully encoded, length: ${jpg.length}");
     return base64Encode(jpg);
   }, bytes);
 }
