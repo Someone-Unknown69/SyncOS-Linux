@@ -6,7 +6,6 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:image/image.dart' as img;
 
-
 class MediaInfo {
   final String title;
   final String artist;
@@ -63,7 +62,7 @@ class MediaPoller {
         _monitorPlayer(name, onSend);
       }
 
-      // FIX #3: Watch for new players appearing / old players disappearing on D-Bus
+      // Watch for new players appearing / old players disappearing on D-Bus
       final nameOwnerSub = DBusSignalStream(
         _client!,
         sender: 'org.freedesktop.DBus',
@@ -86,7 +85,7 @@ class MediaPoller {
           _players.remove(serviceName);
           _lastArtUrlPerPlayer.remove(serviceName);
           if (_activePlayerName == serviceName) {
-            // Reset active player — the next PropertiesChanged event from a
+            // Reset active player, the next PropertiesChanged event from a
             // remaining Playing player will automatically claim the slot.
             _activePlayerName = null;
             _lastInfo = null; // force a fresh push when the next player takes over
@@ -133,7 +132,6 @@ class MediaPoller {
 
       final statusStr = status.asString();
 
-      // FIX #1: Properly track the active player.
       // A player that starts Playing always becomes active.
       // A player that stops should only clear the active slot if it *was* active.
       if (_activePlayerName != name) {
@@ -160,7 +158,7 @@ class MediaPoller {
         // stale state as "the" update.
       }
 
-      // FIX #2: Only push updates to the client when this player is (or has become) active.
+      // Only push updates to the client when this player is (or has become) active.
       // We still need to process the event to detect play/pause switches above, but
       // we skip sending the data if this is a background (non-active) player.
       final isActive = (_activePlayerName == name) || (_activePlayerName == null);
@@ -170,13 +168,13 @@ class MediaPoller {
         return;
       }
 
-      // --- From here on, we are handling the active player ---
+      // --- Active Player Handling ---
 
       final data = meta.asStringVariantDict();
       final rawArtUrl = data['mpris:artUrl']?.asString() ?? '';
       String processedArtBase64 = "";
 
-      // FIX #4: Use per-player art URL cache so switching players always re-sends art
+      // Use per-player art URL cache so switching players always re-sends art
       final lastArtUrlForThisPlayer = _lastArtUrlPerPlayer[name] ?? '';
 
       if (rawArtUrl.isNotEmpty && rawArtUrl != lastArtUrlForThisPlayer) {
@@ -189,7 +187,7 @@ class MediaPoller {
         }
       }
 
-      // Construct Info
+      // Construct Metadata
       final newInfo = MediaInfo(
         status: statusStr,
         title: data['xesam:title']?.asString() ?? 'Unknown',
@@ -255,7 +253,11 @@ class MediaPoller {
     }
   }
 
-  Future<void> control(String action) async {
+  void control(String action, Map<String, dynamic> args) {
+    _control(action, args);
+  }
+
+  Future<void> _control(String action, Map<String, dynamic> args) async {
     // Use the cached player
     final targetName = _activePlayerName ?? _players.keys.firstOrNull;
     final targetPlayer = _players[targetName];
@@ -267,9 +269,15 @@ class MediaPoller {
       if (action == 'next') {method = 'Next';}
       else if (action == 'previous') {method = 'Previous';}
       else if (action == 'play_pause') {method = 'PlayPause';}
+      else if (action == 'seek') {seek(args["position"]); return;}
 
-      await targetPlayer.callMethod('org.mpris.MediaPlayer2.Player', method, []);
-      debugPrint("Sent $method to $targetName");
+      // Fire-and-forget: don't await for immediate response
+      targetPlayer.callMethod('org.mpris.MediaPlayer2.Player', method, [])
+        .then((_) => debugPrint("Sent $method to $targetName"))
+        .catchError((e) {
+          debugPrint("Failed to send $action: $e");
+          _activePlayerName = null;
+        });
     } catch (e) {
       debugPrint("Failed to send $action: $e");
       _activePlayerName = null;
@@ -299,6 +307,8 @@ class MediaPoller {
     return 0;
   }
 }
+
+// ----  Hereon there is album art fetching system  ----
 
 Future<Uint8List?> _fetchRawBytes(String artUrl) async {
   try {

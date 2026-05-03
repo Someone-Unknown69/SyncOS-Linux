@@ -7,6 +7,7 @@ import 'services/music.dart';
 import 'services/battery_info.dart';
 import 'services/http_server.dart';
 import 'pairing_service.dart';
+import 'services/handle_request.dart';
 
 // --------------------------------    Socket Class      -------------------------------------------------
  
@@ -14,41 +15,32 @@ class SocketServer extends ChangeNotifier{
   // ------------------------------    Class Variables    ------------------------------------------------
   ServerSocket? _server;
   final ValueNotifier<bool> connectionStatus = ValueNotifier<bool>(false);
-  final _messageController = StreamController<String>.broadcast();
+  final _messageController = StreamController<Map<String, dynamic>>.broadcast();
   Socket? _client;
   Socket? _pendingSocket;
   
   final BytesBuilder _buffer = BytesBuilder();
 
-  // This is the template for any request sent to the other device
-  Map<String, dynamic> createRequest({
-    required String op,
-    Map<String, dynamic>? args,
-  }) {
-    return {
-      "op": op,           // Operation type                    
-      "args": args,        // arguments  
-      "id": DateTime.now().millisecondsSinceEpoch, // Sequence number
-    };
-  }
+  // Defining socketserver
+  SocketServer({required PairingService pairingService}) : _pairingService = pairingService;
 
   // --------------------------------     Services       ----------------------------------------
   final MediaPoller _mediaPoller = MediaPoller();
   final BatteryMonitorServiceLinux _batteryMonitorServiceLinux = BatteryMonitorServiceLinux();
   SimpleHttpServer? _httpServer;
   final PairingService _pairingService;
+  final requestHandler = HandleRequest();
 
-  // ----------------------------  Client  Device Information    ---------------------------------
-  final ValueNotifier<String>  deviceName = ValueNotifier<String>(Platform.localHostname);
+  // -------------------------------    Connection Information    ---------------------------------
   final ValueNotifier<int> connectedClients = ValueNotifier<int>(0);
   final ValueNotifier<String?> pendingClientIP = ValueNotifier<String?>(null);
 
-  SocketServer({required PairingService pairingService}) : _pairingService = pairingService;
 
   // ---------------------------------    Getters    -------------------------------------------- 
-  Stream<String> get messageStream => _messageController.stream;
+  Stream<Map<String, dynamic>> get messageStream => _messageController.stream;
 
   // --------------------------------     Methods    --------------------------------------------
+
   // Asynchronous method to start server and listen for connections
   Future<void> startServer(int port) async {
     try {
@@ -85,45 +77,6 @@ class SocketServer extends ChangeNotifier{
     }
   }
 
-  // Method to send requests to client
-  void send(String op, Map<String, dynamic> args) {
-    if (op == 'albumArt_internal') {
-      _httpServer?.updateAlbumArt(args['albumArt'] ?? '');
-      return; // Do not send over socket
-    }
-
-    if (_client == null) return;
-
-    try {
-      final request = {
-        "op": op,
-        "args": args,
-        "id": DateTime.now().millisecondsSinceEpoch,
-      };
-
-      final jsonData = utf8.encode(jsonEncode(request));
-      final lengthBytes = ByteData(4)..setUint32(0, jsonData.length, Endian.big);
-      
-      _client!.add(lengthBytes.buffer.asUint8List());
-      _client!.add(jsonData);
-    } catch (e) {
-      debugPrint('Send error: $e');
-      _handleDisconnect();
-    }
-  }
-
-  void _sendRaw(String data) {
-    if (_client == null && _pendingSocket == null) return;
-    try {
-      final socket = _client ?? _pendingSocket!;
-      final jsonData = utf8.encode(data);
-      final lengthBytes = ByteData(4)..setUint32(0, jsonData.length, Endian.big);
-      socket.add(lengthBytes.buffer.asUint8List());
-      socket.add(jsonData);
-    } catch (e) {
-      debugPrint('Send raw error: $e');
-    }
-  }
 
   // Setting up the socket listener to get client's requests
   void _setupSocketListeners(Socket socket) {
@@ -183,6 +136,7 @@ class SocketServer extends ChangeNotifier{
       debugPrint('Handshake failed: $e');
     }
 
+    requestHandler.setMediaPoller(_mediaPoller);
     _mediaPoller.start(send);
     _batteryMonitorServiceLinux.start(send); 
 
@@ -206,58 +160,6 @@ class SocketServer extends ChangeNotifier{
     }
   }
 
-  // Method to handle incoming commands from clients
-  void _handleCommand(String command, Socket socket) {
-    try {
-      final data = jsonDecode(command);
-      
-      if (socket == _pendingSocket) {
-        if (data['op'] == 'auth' && data['token'] == _pairingService.pairingToken) {
-          debugPrint('Auto-accepting connection from authenticated client.');
-          acceptConnection();
-        } else {
-          debugPrint('Invalid auth token, rejecting.');
-          rejectConnection();
-        }
-        return;
-      }
-      debugPrint('Received command: $command');
-
-      if (data['op'] == 'seek') {
-        final pos = data['args']?['position'];
-        if (pos != null) {
-          _mediaPoller.seek((pos as num).toInt());
-        }
-        return;
-      }
-
-      if (data['op'] == 'music_controls') {
-        final action = data['action'];
-        if (action != null) {
-          _mediaPoller.control(action);
-        }
-        return;
-      }
-      return;
-    } catch (_) {
-      // Not JSON or plain string command
-    }
-
-    if (command == "PING") {
-      _sendRaw("PONG");
-    } else if (command == "PLAY") {
-      debugPrint("Play command received");
-    } else if (command == "PAUSE") {
-      debugPrint("Pause command received");
-    } else if (command == "NEXT") {
-      debugPrint("Next command received");
-    } else if (command == "PREV") {
-      debugPrint("Prev command received");
-    } else {
-      debugPrint("Unknown command: $command");
-    }
-  }
-
   // Method to stop the server
   void stopServer() {
     _handleDisconnect();
@@ -278,6 +180,79 @@ class SocketServer extends ChangeNotifier{
     notifyListeners();
   }
 
+
+  // Method to handle incoming commands from clients
+  void _handleCommand(String command, Socket socket) {
+    try {
+      if (command == "PING" || command == "ACCEPTED" || command == "REJECTED") {
+        debugPrint('Received plain text command: $command');
+        if (command == "PING") {
+          _sendRaw("PONG");
+        }
+        return;
+      }
+
+      // Parse as JSON for regular commands
+      final data = jsonDecode(command);
+      
+      if (socket == _pendingSocket) {
+        if (data['op'] == 'auth' && data['token'] == _pairingService.pairingToken) {
+          debugPrint('Auto-accepting connection from authenticated client.');
+          acceptConnection();
+        } else {
+          debugPrint('Invalid auth token, rejecting.');
+          rejectConnection();
+        }
+        return;
+      }
+      debugPrint('Received command: $command');
+
+      requestHandler.handle(command);
+      return;
+    } catch (e) {
+      debugPrint("Error in handling Command $e");
+    }
+  }
+
+  // Method to send requests to client
+  void send(String op, Map<String, dynamic> args) {
+    if (op == 'albumArt_internal') {
+      _httpServer?.updateAlbumArt(args['albumArt'] ?? '');
+      return; // Do not send over socket
+    }
+
+    if (_client == null) return;
+
+    try {
+      final request = {
+        "op": op,
+        "args": args,
+        "id": DateTime.now().millisecondsSinceEpoch,
+      };
+
+      final jsonData = utf8.encode(jsonEncode(request));
+      final lengthBytes = ByteData(4)..setUint32(0, jsonData.length, Endian.big);
+      
+      _client!.add(lengthBytes.buffer.asUint8List());
+      _client!.add(jsonData);
+    } catch (e) {
+      debugPrint('Send error: $e');
+      _handleDisconnect();
+    }
+  }
+
+  void _sendRaw(String data) {
+    if (_client == null && _pendingSocket == null) return;
+    try {
+      final socket = _client ?? _pendingSocket!;
+      final jsonData = utf8.encode(data);
+      final lengthBytes = ByteData(4)..setUint32(0, jsonData.length, Endian.big);
+      socket.add(lengthBytes.buffer.asUint8List());
+      socket.add(jsonData);
+    } catch (e) {
+      debugPrint('Send raw error: $e');
+    }
+  }
 }
 
 

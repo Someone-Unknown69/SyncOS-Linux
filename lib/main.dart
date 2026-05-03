@@ -67,7 +67,7 @@ class RemoteControllerApp extends StatelessWidget {
   }
 }
 
-// The "Stateful" Page (Where logic lives)
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -188,8 +188,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         _statusConnected(),
                         const SizedBox(height: _spacing),
 
-
-
                         ValueListenableBuilder<int>(
                           valueListenable: client.connectedClients,
                           builder: (context, clientCount, child) {
@@ -209,8 +207,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                   _dashBoard(),
                                 ],
                               );
+                            } else {
+                              return _qrCodeCard();
                             }
-                            return _qrCodeCard();
                           },
                         ),
                       ] else  
@@ -225,6 +224,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+
 
   Widget _qrCodeCard() {
     final theme = Theme.of(context);
