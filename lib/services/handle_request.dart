@@ -1,7 +1,5 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'music.dart';
 
 // Metadata class
@@ -70,8 +68,6 @@ class HandleRequest {
     _handlers = {
       "battery_info": _handleBattery,
       "music": _handleMusic,
-      "music_controls": _handleMusicControl,
-      "fetch_art": _handleFetchArt,
     };
   }
 
@@ -85,12 +81,6 @@ class HandleRequest {
   final ValueNotifier<bool> isCharging = ValueNotifier<bool>(false);
   
   final ValueNotifier<MediaMetadata> metadata = ValueNotifier(MediaMetadata.initial());
-  
-  String _httpUrl = '';
-
-  void setHttpUrl(String url) {
-    _httpUrl = url;
-  }
 
   void setMediaPoller(MediaPoller mediaPoller) {
     _mediaPoller = mediaPoller;
@@ -131,68 +121,46 @@ class HandleRequest {
     deviceName.value = args['device'] ?? "Unknown";
   }
 
-  void _handleFetchArt(Map<String, dynamic> data) {
-    if (_httpUrl.isNotEmpty) {
-      Future.delayed(const Duration(seconds: 1), _fetchAlbumArt);
-    }
-  }
 
-  void _handleMusic(Map<String, dynamic> songInfo) {
-    final args = songInfo['args'];
-    
-    final newTitle = args['title'] ?? 'Unknown';
-    final oldTitle = metadata.value.title;
+  void _handleMusic(Map<String, dynamic> data) {
+    final action = data['action'];
+    final args = data['args'];
 
-    // Dirty cache: ignore 'Unknown' if we already have a valid title
-    if (newTitle == 'Unknown' && oldTitle != 'Unknown') {
+    if(action == 'update_metadata') {
+      final newTitle = args['title'] ?? 'Unknown';
+      final oldTitle = metadata.value.title;
+
+      // Dirty cache
+      if (newTitle == 'Unknown' && oldTitle != 'Unknown') {
+        metadata.value = metadata.value.copyWith(
+          status: args['status'],
+          volume: args['volume'],
+          duration: args['duration'],
+          position: args['position'],
+          albumArt: args['albumArt'] ?? metadata.value.albumArt,
+        );
+        return;
+      }
+      
       metadata.value = metadata.value.copyWith(
+        title: newTitle,
+        artist: args['artist'],
+        album: args['album'],
         status: args['status'],
         volume: args['volume'],
         duration: args['duration'],
         position: args['position'],
+        albumArt: args['albumArt'] ?? metadata.value.albumArt,
       );
-      return;
-    }
-    
-    metadata.value = metadata.value.copyWith(
-      title: newTitle,
-      artist: args['artist'],
-      album: args['album'],
-      status: args['status'],
-      volume: args['volume'],
-      duration: args['duration'],
-      position: args['position'],
-    );
-    
-    // Proactively fetch album art when the song changes with a delay for browsers to load real images
-    if (newTitle != oldTitle && newTitle != 'Unknown' && _httpUrl.isNotEmpty) {
-      Future.delayed(const Duration(seconds: 1), _fetchAlbumArt);
-    }
-  }
-  
-  void _handleMusicControl(Map<String, dynamic> data) {
-    if (_mediaPoller != null) {
-      _mediaPoller!.control(data['action'], data['args']);
-    } else {
-      debugPrint('Error: MediaPoller not set in HandleRequest');
+
+    } else if (action == 'control') {
+      if(_mediaPoller != null) {
+        _mediaPoller!.control(args);
+      } else {
+        debugPrint('Error: MediaPoller not set in HandleRequest');
+      }
     }
   }
 
-  Future<void> _fetchAlbumArt() async {
-    try {
-      final response = await http.get(Uri.parse('$_httpUrl/art')).timeout(const Duration(seconds: 5));
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['albumArt'] != null && data['albumArt'].toString().isNotEmpty) {
-          metadata.value = metadata.value.copyWith(albumArt: data['albumArt']);
-        } else {
-          metadata.value = metadata.value.copyWith(albumArt: "N/A");
-        }
-      } else {
-        metadata.value = metadata.value.copyWith(albumArt: "N/A");
-      }
-    } catch (e) {
-      debugPrint("Failed to fetch album art: $e");
-    }
-  }
+
 }

@@ -1,10 +1,13 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:laptop_controller/services/handle_request.dart';
 import 'socket_server.dart';
 import 'dart:io';
 import 'music_player.dart';
 import 'pairing_service.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+
+final processor = HandleRequest();
 
 class DashboardItem {
   final String label;
@@ -194,13 +197,20 @@ class _HomeScreenState extends State<HomeScreen> {
                             if (clientCount > 0) {
                               return Column(
                                 children: [
-                                  MusicPlayerWidget(
-                                    imagePath: 'assets/images/album2.png',
-                                    trackName: "Music Control",
-                                    artistName: "Waiting for playback...",
-                                    onPlay: () => {},
-                                    onPrev: () => {},
-                                    onNext: () => {},
+                                  ValueListenableBuilder<MediaMetadata>(
+                                    valueListenable: processor.metadata, 
+                                    builder: (context, info, child) {
+                                      return MusicPlayerWidget(
+                                        imagePath: info.albumArt,
+                                        trackName: info.title,
+                                        artistName: info.artist,
+                                        position: info.position,
+                                        duration: info.duration,
+                                        status: info.status,
+                                        albumArtBase64: info.albumArt,
+                                        client: client, // Pass client for seek ops
+                                      );
+                                    },
                                   ),
 
                                   const SizedBox(height: _spacing),

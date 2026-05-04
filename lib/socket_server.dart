@@ -57,6 +57,7 @@ class SocketServer extends ChangeNotifier{
 
       _server!.listen((Socket socket) {
         debugPrint('Client attempting to connect: ${socket.remoteAddress.address}:${socket.remotePort}');
+        socket.setOption(SocketOption.tcpNoDelay, true);
         if (_client != null || _pendingSocket != null) {
           debugPrint('Rejecting connection: already have a client or pending');
           socket.close();
@@ -185,7 +186,7 @@ class SocketServer extends ChangeNotifier{
   void _handleCommand(String command, Socket socket) {
     try {
       if (command == "PING" || command == "ACCEPTED" || command == "REJECTED") {
-        debugPrint('Received plain text command: $command');
+        debugPrint('Received : $command');
         if (command == "PING") {
           _sendRaw("PONG");
         }
@@ -215,7 +216,7 @@ class SocketServer extends ChangeNotifier{
   }
 
   // Method to send requests to client
-  void send(String op, Map<String, dynamic> args) {
+  void send(String op, String action, Map<String, dynamic> args) {
     if (op == 'albumArt_internal') {
       _httpServer?.updateAlbumArt(args['albumArt'] ?? '');
       return; // Do not send over socket
@@ -226,6 +227,7 @@ class SocketServer extends ChangeNotifier{
     try {
       final request = {
         "op": op,
+        "action" : action,
         "args": args,
         "id": DateTime.now().millisecondsSinceEpoch,
       };

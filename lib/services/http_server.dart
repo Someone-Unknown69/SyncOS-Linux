@@ -1,40 +1,24 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:shelf/shelf.dart';
-import 'package:shelf/shelf_io.dart' as shelf_io;
+import 'package:shelf/shelf_io.dart' as io;
 import 'package:shelf_router/shelf_router.dart';
+import 'package:flutter/foundation.dart';
 
 class SimpleHttpServer {
-  HttpServer? _server;
   final int port;
-  final String _pairingToken;
+  final String pairingToken;
   String _currentAlbumArtBase64 = "";
+  HttpServer? _server;
 
-  SimpleHttpServer({required this.port, required String pairingToken}) : _pairingToken = pairingToken;
+  SimpleHttpServer({required this.port, required this.pairingToken});
 
-  void updateAlbumArt(String base64String) {
-    _currentAlbumArtBase64 = base64String;
+  void updateAlbumArt(String base64) {
+    _currentAlbumArtBase64 = base64;
   }
 
   Future<void> start() async {
     final router = Router();
-
-    router.post('/pair', (Request request) async {
-      final payload = await request.readAsString();
-      try {
-        final data = jsonDecode(payload);
-        if (data['token'] == _pairingToken) {
-          debugPrint('[HttpServer] Pairing successful');
-          return Response.ok(jsonEncode({'status': 'authorized'}), headers: {'Content-Type': 'application/json'});
-        } else {
-          debugPrint('[HttpServer] Pairing failed: invalid token');
-          return Response.forbidden(jsonEncode({'status': 'unauthorized'}), headers: {'Content-Type': 'application/json'});
-        }
-      } catch (e) {
-        return Response.badRequest(body: 'Invalid JSON');
-      }
-    });
 
     router.get('/art', (Request request) {
       if (_currentAlbumArtBase64.isNotEmpty) {
@@ -49,16 +33,15 @@ class SimpleHttpServer {
     final handler = const Pipeline().addMiddleware(logRequests()).addHandler(router.call);
 
     try {
-      _server = await shelf_io.serve(handler, '0.0.0.0', port);
-      debugPrint('[HttpServer] Running on port ${_server?.port}');
+      _server = await io.serve(handler, InternetAddress.anyIPv4, port);
+      debugPrint('[HttpServer] Running on port ${_server!.port}');
     } catch (e) {
-      debugPrint('[HttpServer] Failed to start HTTP Server: $e');
+      debugPrint('[HttpServer] Failed to start: $e');
     }
   }
 
   Future<void> stop() async {
     await _server?.close(force: true);
     _server = null;
-    debugPrint('[HttpServer] Stopped');
   }
 }

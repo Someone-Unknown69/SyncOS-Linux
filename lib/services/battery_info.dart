@@ -9,10 +9,10 @@ class BatteryMonitorServiceLinux{
   StreamSubscription? _subscription;
   final String _batPath = '/sys/class/power_supply/BAT0';
 
-  void start(void Function(String op, Map<String, dynamic> args) onSend) {
+  void start(void Function(String op, String action, Map<String, dynamic> args) onSend) {
     // send at the connection start
 
-    onSend('battery_info', {
+    onSend('battery_info', '', {
       'level': _readBattery()?.level,
       'status': _readBattery()?.isCharging,
     });
@@ -26,7 +26,7 @@ class BatteryMonitorServiceLinux{
         _lastLevel = data.level;
         _lastCharging = data.isCharging;
 
-        onSend('battery_info', {
+        onSend('battery_info', '', {
           'level': data.level,
           'status': data.isCharging,
           'device': Platform.localHostname, 

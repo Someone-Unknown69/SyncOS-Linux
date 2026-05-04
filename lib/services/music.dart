@@ -51,7 +51,7 @@ class MediaPoller {
 
   String? _activePlayerName;
 
-  Future<void> start(void Function(String op, Map<String, dynamic> args) onSend) async {
+  Future<void> start(void Function(String op, String action, Map<String, dynamic> args) onSend) async {
     if (_client != null) return; // Already running
     
     _client = DBusClient.session();
@@ -100,7 +100,7 @@ class MediaPoller {
     }
   }
 
-  void _monitorPlayer(String name, void Function(String op, Map<String, dynamic> args) onSend) {
+  void _monitorPlayer(String name, void Function(String op, String action, Map<String, dynamic> args) onSend) {
     if (_client == null) return;
     if (_players.containsKey(name)) return; // Already monitoring
     
@@ -110,10 +110,10 @@ class MediaPoller {
     final object = DBusRemoteObject(_client!, name: name, path: DBusObjectPath('/org/mpris/MediaPlayer2'));
     _players[name] = object;
 
-    // Listen for D-Bus property changes (this covers Skip, Pause, Resume)
+    // Listen for D-Bus property changes
     final sub = DBusSignalStream(_client!, sender: name, interface: 'org.freedesktop.DBus.Properties', 
                      name: 'PropertiesChanged', path: DBusObjectPath('/org/mpris/MediaPlayer2'))
-      .listen((signal) => _updateMetadata(name, onSend));
+      .listen((signal) => _updateMetadata(name, onSend, signal: signal));
       
     _subscriptions.add(sub);
     
@@ -121,16 +121,29 @@ class MediaPoller {
     _updateMetadata(name, onSend);
   }
 
-  Future<void> _updateMetadata(String name, void Function(String op, Map<String, dynamic> args) onSend) async {
+  Future<void> _updateMetadata(String name, void Function(String op, String action, Map<String, dynamic> args) onSend, {DBusSignal? signal}) async {
     final object = _players[name];
     if (object == null) return;
 
     try {
-      final meta   = await object.getProperty('org.mpris.MediaPlayer2.Player', 'Metadata');
-      final status = await object.getProperty('org.mpris.MediaPlayer2.Player', 'PlaybackStatus');
-      final pos    = await object.getProperty('org.mpris.MediaPlayer2.Player', 'Position');
+      DBusValue? metaValue;
+      DBusValue? statusValue;
+      DBusValue? posValue;
 
-      final statusStr = status.asString();
+      // Optimization: If we have a signal, extract the properties directly from it
+      if (signal != null && signal.values.length >= 2) {
+        final changedProps = signal.values[1].asStringVariantDict();
+        metaValue = changedProps['Metadata'];
+        statusValue = changedProps['PlaybackStatus'];
+        posValue = changedProps['Position'];
+      }
+
+      // Fallback: If properties weren't in the signal (or no signal), fetch them manually
+      metaValue ??= await object.getProperty('org.mpris.MediaPlayer2.Player', 'Metadata');
+      statusValue ??= await object.getProperty('org.mpris.MediaPlayer2.Player', 'PlaybackStatus');
+      posValue ??= await object.getProperty('org.mpris.MediaPlayer2.Player', 'Position');
+
+      final statusStr = statusValue.asString();
 
       // A player that starts Playing always becomes active.
       // A player that stops should only clear the active slot if it *was* active.
@@ -170,7 +183,7 @@ class MediaPoller {
 
       // --- Active Player Handling ---
 
-      final data = meta.asStringVariantDict();
+      final data = metaValue.asStringVariantDict();
       final rawArtUrl = data['mpris:artUrl']?.asString() ?? '';
       String processedArtBase64 = "";
 
@@ -194,20 +207,20 @@ class MediaPoller {
         album: data['xesam:album']?.asString() ?? 'Unknown',
         artist: data['xesam:artist']?.asStringArray().join(', ') ?? 'Unknown Artist',
         duration: safeExtractInt(data['mpris:length']) ~/ 1000000,
-        position: safeExtractInt(pos) ~/ 1000000,
+        position: safeExtractInt(posValue) ~/ 1000000,
         volume: 0.0,
       );
 
       // Send Updates
       if (!newInfo.isSameAs(_lastInfo)) {
         _lastInfo = newInfo;
-        onSend('music', newInfo.toMap());
+        onSend('music', 'update_metadata', newInfo.toMap());
       }
 
       // Send image update only if we processed a new one
       if (processedArtBase64.isNotEmpty) {
-        onSend('albumArt_internal', {'albumArt': processedArtBase64});
-        onSend('fetch_art', {}); // Trigger fetch event
+        onSend('albumArt_internal','update_albumArt', {'albumArt': processedArtBase64});
+        onSend('fetch_art', '', {}); // Trigger fetch event
       }
 
       debugPrint("Data updated from active player [$name]: ${newInfo.title} (${newInfo.status})");
@@ -253,11 +266,11 @@ class MediaPoller {
     }
   }
 
-  void control(String action, Map<String, dynamic> args) {
-    _control(action, args);
+  void control(Map<String, dynamic> args) {
+    _control(args);
   }
 
-  Future<void> _control(String action, Map<String, dynamic> args) async {
+  Future<void> _control(Map<String, dynamic> args) async {
     // Use the cached player
     final targetName = _activePlayerName ?? _players.keys.firstOrNull;
     final targetPlayer = _players[targetName];
@@ -266,20 +279,20 @@ class MediaPoller {
 
     try {
       String method = '';
-      if (action == 'next') {method = 'Next';}
-      else if (action == 'previous') {method = 'Previous';}
-      else if (action == 'play_pause') {method = 'PlayPause';}
-      else if (action == 'seek') {seek(args["position"]); return;}
+      if (args['method'] == 'next') {method = 'Next';}
+      else if (args['method'] == 'previous') {method = 'Previous';}
+      else if (args['method'] == 'play_pause') {method = 'PlayPause';}
+      else if (args['method'] == 'seek') {seek(args["position"]); return;}
 
-      // Fire-and-forget: don't await for immediate response
+      // don't await for immediate response
       targetPlayer.callMethod('org.mpris.MediaPlayer2.Player', method, [])
         .then((_) => debugPrint("Sent $method to $targetName"))
         .catchError((e) {
-          debugPrint("Failed to send $action: $e");
+          debugPrint("Failed to send $method: $e");
           _activePlayerName = null;
         });
     } catch (e) {
-      debugPrint("Failed to send $action: $e");
+      debugPrint("Failed to send $args['method']: $e");
       _activePlayerName = null;
     }
   }
