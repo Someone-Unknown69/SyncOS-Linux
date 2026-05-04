@@ -153,7 +153,7 @@ class MediaPoller {
 
       if (_activePlayerName == name && statusStr != 'Playing') {
         // The currently active player paused/stopped. Look for another playing player.
-        // We don't clear _activePlayerName immediately — we let it stay so controls
+        // We don't clear _activePlayerName immediately ,we let it stay so controls
         // still work until another player takes over. But we do stop pushing its
         // stale state as "the" update.
       }
