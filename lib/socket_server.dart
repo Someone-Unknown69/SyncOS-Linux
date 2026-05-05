@@ -193,7 +193,6 @@ class SocketServer extends ChangeNotifier{
         return;
       }
 
-      // Parse as JSON for regular commands
       final data = jsonDecode(command);
       
       if (socket == _pendingSocket) {
@@ -217,13 +216,6 @@ class SocketServer extends ChangeNotifier{
 
   // Method to send requests to client
   void send(String op, String action, Map<String, dynamic> args) {
-    if (op == 'albumArt_internal') {
-      _httpServer?.updateAlbumArt(args['albumArt'] ?? '');
-      return; // Do not send over socket
-    }
-
-    if (_client == null) return;
-
     try {
       final request = {
         "op": op,
@@ -231,6 +223,8 @@ class SocketServer extends ChangeNotifier{
         "args": args,
         "id": DateTime.now().millisecondsSinceEpoch,
       };
+
+      if (_client == null) return;
 
       final jsonData = utf8.encode(jsonEncode(request));
       final lengthBytes = ByteData(4)..setUint32(0, jsonData.length, Endian.big);

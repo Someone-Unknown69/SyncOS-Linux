@@ -14,6 +14,7 @@ class MediaInfo {
   final int position;
   final int duration;
   final double volume;
+  final String albumArtBase64;
 
   // returns false if title is "Unknown" or empty
   bool get isValid => title != 'Unknown' && title.isNotEmpty;
@@ -22,12 +23,14 @@ class MediaInfo {
     required this.title, required this.artist, required this.album,
     required this.status, required this.position,
     required this.duration, required this.volume,
+    required this.albumArtBase64,
   });
 
   Map<String, dynamic> toMap() => {
     'title': title, 'artist': artist, 'album': album,
     'status': status, 'position': position,
     'duration': duration, 'volume': volume,
+    'albumArt': albumArtBase64.isNotEmpty ? albumArtBase64 : null,
   };
 
   // Used for Dirty Cache Check
@@ -208,19 +211,14 @@ class MediaPoller {
         artist: data['xesam:artist']?.asStringArray().join(', ') ?? 'Unknown Artist',
         duration: safeExtractInt(data['mpris:length']) ~/ 1000000,
         position: safeExtractInt(posValue) ~/ 1000000,
+        albumArtBase64: processedArtBase64,
         volume: 0.0,
       );
 
       // Send Updates
-      if (!newInfo.isSameAs(_lastInfo)) {
+      if (!newInfo.isSameAs(_lastInfo) || processedArtBase64.isNotEmpty) {
         _lastInfo = newInfo;
         onSend('music', 'update_metadata', newInfo.toMap());
-      }
-
-      // Send image update only if we processed a new one
-      if (processedArtBase64.isNotEmpty) {
-        onSend('albumArt_internal','update_albumArt', {'albumArt': processedArtBase64});
-        onSend('fetch_art', '', {}); // Trigger fetch event
       }
 
       debugPrint("Data updated from active player [$name]: ${newInfo.title} (${newInfo.status})");
