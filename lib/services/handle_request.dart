@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'music.dart';
+import 'usb_controller.dart';
 
 // Metadata class
 class MediaMetadata {
@@ -68,6 +69,7 @@ class HandleRequest {
     _handlers = {
       "battery_info": _handleBattery,
       "music": _handleMusic,
+      "controller" : _handleController,
     };
   }
 
@@ -162,5 +164,12 @@ class HandleRequest {
     }
   }
 
+  void _handleController(Map<String, dynamic> data) {
+    final action = data['action'];
+    final args = data['args'];
+    if(action != null) {
+      ControllerService().keyPress(action, args['button']);
+    }
+  }
 
 }

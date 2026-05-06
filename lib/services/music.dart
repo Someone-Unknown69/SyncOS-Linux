@@ -244,7 +244,7 @@ class MediaPoller {
       final rawArtUrl = data['mpris:artUrl']?.asString() ?? '';
       String processedArtBase64 = "";
 
-      // Use per-player art URL cache so switching players always re-sends art
+      // Using per-player art URL cache so switching players always re-sends art
       final lastArtUrlForThisPlayer = _lastArtUrlPerPlayer[name] ?? '';
 
       if (rawArtUrl.isNotEmpty && rawArtUrl != lastArtUrlForThisPlayer) {

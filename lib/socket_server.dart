@@ -141,6 +141,7 @@ class SocketServer extends ChangeNotifier{
     _mediaPoller.start(send);
     _batteryMonitorServiceLinux.start(send); 
 
+
     notifyListeners();
   }
 

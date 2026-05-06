@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:laptop_controller/services/handle_request.dart';
 import 'socket_server.dart';
 import 'dart:io';
-import 'music_player.dart';
+import 'dashboard/music_player.dart';
 import 'pairing_service.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
