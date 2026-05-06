@@ -55,7 +55,7 @@ class MusicPlayerWidget extends StatefulWidget {
 
 class _MusicPlayerWidgetState extends State<MusicPlayerWidget> {
   ColorScheme? _dynamicScheme;
-
+  Uint8List? _cacheImageBytes;
 
   @override
   void initState() {
@@ -66,7 +66,8 @@ class _MusicPlayerWidgetState extends State<MusicPlayerWidget> {
   @override
   void didUpdateWidget(MusicPlayerWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.albumArtBase64 != widget.albumArtBase64 || oldWidget.imagePath != widget.imagePath) {
+    if (oldWidget.albumArtBase64 != widget.albumArtBase64 || 
+    oldWidget.imagePath != widget.imagePath) {
       _updateTheme();
     }
   }
@@ -91,27 +92,27 @@ class _MusicPlayerWidgetState extends State<MusicPlayerWidget> {
   }
 
   Future<void> _updateTheme() async {
-    ImageProvider provider;
-    Uint8List? bytes = _decodeBase64Image(widget.albumArtBase64) ?? _decodeBase64Image(widget.imagePath);
-    if (bytes != null) {
-      provider = MemoryImage(bytes);
-    } else {
-      provider = const AssetImage('assets/images/album2.png');
+    final bytes = _decodeBase64Image(widget.albumArtBase64) ?? _decodeBase64Image(widget.imagePath);
+
+    if(mounted) {
+      setState(() {
+        _cacheImageBytes = bytes; 
+      });
     }
 
-    final scheme = await MusicThemeService.generate(
-      provider,
-      Brightness.dark,
-    );
-    if (mounted) {
-      setState(() => _dynamicScheme = scheme);
+    if (bytes != null) {
+      final scheme = await MusicThemeService.generate(
+        MemoryImage(bytes),
+        Brightness.dark,
+      );
+      if(mounted) {
+        setState(() => _dynamicScheme = scheme);
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    Uint8List? imageBytes = _decodeBase64Image(widget.albumArtBase64) ?? _decodeBase64Image(widget.imagePath);
-
     final theme = _dynamicScheme ?? Theme.of(context).colorScheme;
 
     return Theme(
@@ -132,10 +133,10 @@ class _MusicPlayerWidgetState extends State<MusicPlayerWidget> {
           child: Stack(
             children: [
               Positioned.fill(
-                child: imageBytes != null
+                child: _cacheImageBytes != null
                   ? SizedBox.expand(
                       child: Image.memory(
-                        imageBytes, 
+                        _cacheImageBytes!, 
                         fit: BoxFit.cover,
                         gaplessPlayback: true,
                       ),

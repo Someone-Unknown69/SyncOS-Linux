@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:image/image.dart' as img;
 
+@immutable
 class MediaInfo {
   final String title;
   final String artist;
@@ -13,27 +14,59 @@ class MediaInfo {
   final String status;
   final int position;
   final int duration;
-  final double volume;
   final String albumArtBase64;
 
-  // returns false if title is "Unknown" or empty
-  bool get isValid => title != 'Unknown' && title.isNotEmpty;
-
-  MediaInfo({
-    required this.title, required this.artist, required this.album,
-    required this.status, required this.position,
-    required this.duration, required this.volume,
+  const MediaInfo({
+    required this.title,
+    required this.artist,
+    required this.album,
+    required this.status,
+    required this.position,
+    required this.duration,
     required this.albumArtBase64,
   });
 
-  Map<String, dynamic> toMap() => {
-    'title': title, 'artist': artist, 'album': album,
-    'status': status, 'position': position,
-    'duration': duration, 'volume': volume,
-    'albumArt': albumArtBase64.isNotEmpty ? albumArtBase64 : null,
+  static const empty = MediaInfo(
+    title: '',
+    artist: '',
+    album: '',
+    status: 'Stopped',
+    position: 0,
+    duration: 0,
+    albumArtBase64: '',
+  );
+
+  bool get isValid => title != 'Unknown' && title.isNotEmpty;
+
+  Map<String, dynamic> toMap({bool includeArt = true}) => {
+    'title': title,
+    'artist': artist,
+    'album': album,
+    'status': status,
+    'position': position,
+    'duration': duration,
+    if (includeArt)'albumArt': albumArtBase64.isNotEmpty ? albumArtBase64 : null,
   };
 
-  // Used for Dirty Cache Check
+  MediaInfo copyWith({
+    String? title,
+    String? artist,
+    String? album,
+    String? status,
+    int? position,
+    int? duration,
+    String? albumArtBase64,
+  }) => MediaInfo(
+    title: title ?? this.title,
+    artist: artist ?? this.artist,
+    album: album ?? this.album,
+    status: status ?? this.status,
+    position: position ?? this.position,
+    duration: duration ?? this.duration,
+    albumArtBase64: albumArtBase64 ?? this.albumArtBase64,
+  );
+
+  // Used for Dirty Cache Check (ignores the album art url)
   bool isSameAs(MediaInfo? other) {
     if (other == null) return false;
     return title == other.title &&
@@ -41,7 +74,28 @@ class MediaInfo {
            status == other.status &&
            position == other.position;
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MediaInfo &&
+          runtimeType == other.runtimeType &&
+          title == other.title &&
+          artist == other.artist &&
+          album == other.album &&
+          status == other.status &&
+          position == other.position &&
+          duration == other.duration &&
+          albumArtBase64 == other.albumArtBase64;
+
+  @override
+  int get hashCode => Object.hash(
+      title, artist, album, status, position, duration, albumArtBase64);
+
+  @override
+  String toString() => 'MediaInfo(title: $title, status: $status)';
 }
+
 
 class MediaPoller {
   DBusClient? _client;
@@ -133,7 +187,7 @@ class MediaPoller {
       DBusValue? statusValue;
       DBusValue? posValue;
 
-      // Optimization: If we have a signal, extract the properties directly from it
+      // If we have a signal, extract the properties directly from it
       if (signal != null && signal.values.length >= 2) {
         final changedProps = signal.values[1].asStringVariantDict();
         metaValue = changedProps['Metadata'];
@@ -141,7 +195,7 @@ class MediaPoller {
         posValue = changedProps['Position'];
       }
 
-      // Fallback: If properties weren't in the signal (or no signal), fetch them manually
+      // If properties weren't in the signal (or no signal), fetch them manually
       metaValue ??= await object.getProperty('org.mpris.MediaPlayer2.Player', 'Metadata');
       statusValue ??= await object.getProperty('org.mpris.MediaPlayer2.Player', 'PlaybackStatus');
       posValue ??= await object.getProperty('org.mpris.MediaPlayer2.Player', 'Position');
@@ -202,23 +256,23 @@ class MediaPoller {
           debugPrint("Poller: Failed to fetch bytes for: $rawArtUrl");
         }
       }
+      final isNewArt = processedArtBase64.isNotEmpty;
 
-      // Construct Metadata
-      final newInfo = MediaInfo(
+      // Check cache
+      final newInfo = (_lastInfo ?? MediaInfo.empty).copyWith(
         status: statusStr,
         title: data['xesam:title']?.asString() ?? 'Unknown',
         album: data['xesam:album']?.asString() ?? 'Unknown',
         artist: data['xesam:artist']?.asStringArray().join(', ') ?? 'Unknown Artist',
         duration: safeExtractInt(data['mpris:length']) ~/ 1000000,
         position: safeExtractInt(posValue) ~/ 1000000,
-        albumArtBase64: processedArtBase64,
-        volume: 0.0,
+        albumArtBase64: isNewArt ? processedArtBase64 : null,
       );
 
       // Send Updates
-      if (!newInfo.isSameAs(_lastInfo) || processedArtBase64.isNotEmpty) {
+      if (!newInfo.isSameAs(_lastInfo) || isNewArt) {
         _lastInfo = newInfo;
-        onSend('music', 'update_metadata', newInfo.toMap());
+        onSend('music', 'update_metadata', newInfo.toMap(includeArt: isNewArt));
       }
 
       debugPrint("Data updated from active player [$name]: ${newInfo.title} (${newInfo.status})");
