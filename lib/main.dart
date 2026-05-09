@@ -104,7 +104,7 @@ class _HomeScreenState extends State<HomeScreen> {
     ),
     DashboardItem(
       label: 'Send Clipboard',
-      icon: Icons.document_scanner,
+      icon: Icons.copy_all,
       onTap: () => (),
     ),
   ];
@@ -172,69 +172,231 @@ class _HomeScreenState extends State<HomeScreen> {
       behavior: HitTestBehavior.translucent, 
 
       child: Scaffold(
-        appBar: AppBar(title: const Text("Remote Controller")),
         body: SafeArea(
-          child: SingleChildScrollView(
-            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-            physics: const AlwaysScrollableScrollPhysics(),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildSidebar(),
+              Expanded(
+                child: SingleChildScrollView(
+                  keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                  physics: const AlwaysScrollableScrollPhysics(),
 
-            child: Padding(
-              padding: const EdgeInsets.all(_padding),
-              child: ValueListenableBuilder<bool>(
-                valueListenable: client.connectionStatus,
-                builder: (context, isConnected, child) {
-                  
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      if(isConnected) ...[
-                        _statusConnected(),
-                        const SizedBox(height: _spacing),
+                  child: Padding(
+                    padding: const EdgeInsets.all(_padding),
+                    child: ValueListenableBuilder<bool>(
+                      valueListenable: client.connectionStatus,
+                      builder: (context, isConnected, child) {
+                        
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch, 
+                          mainAxisAlignment: MainAxisAlignment.start,
+                          children: [
+                            if(isConnected) ...[
+                              _statusConnected(),
+                              const SizedBox(height: _spacing),
 
-                        ValueListenableBuilder<int>(
-                          valueListenable: client.connectedClients,
-                          builder: (context, clientCount, child) {
-                            if (clientCount > 0) {
-                              return Column(
-                                children: [
-                                  ValueListenableBuilder<MediaMetadata>(
-                                    valueListenable: processor.metadata, 
-                                    builder: (context, info, child) {
-                                      return MusicPlayerWidget(
-                                        imagePath: info.albumArt,
-                                        trackName: info.title,
-                                        artistName: info.artist,
-                                        position: info.position,
-                                        duration: info.duration,
-                                        status: info.status,
-                                        albumArtBase64: info.albumArt,
-                                        client: client, // Pass client for seek ops
-                                      );
-                                    },
-                                  ),
+                              ValueListenableBuilder<int>(
+                                valueListenable: client.connectedClients,
+                                builder: (context, clientCount, child) {
+                                  if (clientCount > 0) {
+                                    return Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Expanded(
+                                          child: Column(
+                                            children: [
+                                              _infoCardsRow(
+                                                batteryLevel: 0.85, // Pass real data here
+                                                isCharging: false,
+                                                volume: 0.5, // State variable from your parent widget
+                                                context: context,
+                                                onVolumeChanged: (val) {
+                                                  // setState(() => _currentVolume = val);
+                                                  // client.send(...) logic here
+                                                },
+                                              ),
 
-                                  const SizedBox(height: _spacing),
-                                  _dashBoard(),
-                                ],
-                              );
-                            } else {
-                              return _qrCodeCard();
-                            }
-                          },
-                        ),
-                      ] else  
-                        _statusNotConnected(),
-                    ],
-                  );
-                },
+                                              const SizedBox(height: _spacing),
+
+                                              _dashBoard(),
+                                            ]
+                                          ) 
+                                        ),
+
+                                        const SizedBox(width: _spacing),
+
+                                        SizedBox(
+                                          width:400,
+                                          child: 
+                                          ValueListenableBuilder<MediaMetadata>(
+                                            valueListenable: processor.metadata, 
+                                            builder: (context, info, child) {
+                                              return MusicPlayerWidget(
+                                                imagePath: info.albumArt, 
+                                                trackName: info.title, 
+                                                artistName: info.artist, 
+                                                position: info.position, 
+                                                duration: info.duration, 
+                                                status: info.status, 
+                                                albumArtBase64: info.albumArt,
+                                                client: client,
+                                              );
+                                            }
+                                          )
+                                        )
+                                      ],
+                                    );
+                                  } else {
+                                    return _qrCodeCard();
+                                  }
+                                },
+                              ),
+                            ] else  
+                              _statusNotConnected(),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
         ),
       ),
     );
   }
 
+  bool _isExpanded = true;
+
+  Widget _buildSidebar() {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOutCubic,
+      width: _isExpanded ? 260 : 80,
+      color: colorScheme.surfaceContainerLow,
+      child: Column(
+        children: [
+          const SizedBox(height: 30),
+          
+          // --- HEADER SECTION ---
+          SizedBox(
+            height: 48,
+            child: Stack(
+              children: [
+                AnimatedOpacity(
+                  duration: const Duration(milliseconds: 200),
+                  opacity: _isExpanded ? 1.0 : 0.0,
+                  child: const Center(
+                    child: Text(
+                      "SyncOS",
+                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOutCubic,
+                  right: _isExpanded ? 8 : 16, 
+                  top: 0,
+                  bottom: 0,
+                  child: Center(
+                    child: IconButton(
+                      icon: AnimatedSwitcher( 
+                        duration: const Duration(milliseconds: 300),
+                        child: Icon(
+                          _isExpanded ? Icons.menu_open : Icons.menu,
+                          key: ValueKey(_isExpanded),
+                        ),
+                      ),
+                      onPressed: () => setState(() => _isExpanded = !_isExpanded),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 30),
+          
+          // --- NAVIGATION ITEMS ---
+          _sidebarTile(Icons.dashboard, "Dashboard", true),
+          _sidebarTile(Icons.folder_shared, "Files", false),
+          _sidebarTile(Icons.terminal, "Configure Commands", false),
+          _sidebarTile(Icons.notifications, "Notifications", false),
+          _sidebarTile(Icons.settings, "Settings", false),
+          
+          const Spacer(), 
+          
+          // --- PC STATUS CARD ---
+          AnimatedOpacity(
+            duration: const Duration(milliseconds: 200),
+            opacity: _isExpanded ? 1.0 : 0.0,
+            child: ClipRect(
+              child: AnimatedAlign(
+                duration: const Duration(milliseconds: 300),
+                alignment: Alignment.center,
+                heightFactor: _isExpanded ? 1.0 : 0.0,
+                // child: _pcStatusCard(colorScheme),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+        ],
+      ),
+    );
+  }
+
+  Widget _sidebarTile(IconData icon, String title, bool selected) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: InkWell(
+        onTap: () {},
+        borderRadius: BorderRadius.circular(28),
+        child: Container(
+          height: 56, 
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            color: selected ? colorScheme.secondaryContainer : Colors.transparent,
+            borderRadius: BorderRadius.circular(28),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                size: 24,
+                color: selected ? colorScheme.onSecondaryContainer : colorScheme.onSurfaceVariant,
+              ),
+              Expanded(
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 200),
+                  opacity: _isExpanded ? 1.0 : 0.0,
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 12),
+                    child: Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.clip,
+                      style: TextStyle(
+                        fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+                        color: selected ? colorScheme.onSecondaryContainer : colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   Widget _qrCodeCard() {
     final theme = Theme.of(context);
@@ -251,7 +413,6 @@ class _HomeScreenState extends State<HomeScreen> {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(_borderRadius),
-        side: BorderSide(color: colorScheme.outlineVariant),
       ),
       child: Padding(
         padding: const EdgeInsets.all(_padding),
@@ -287,14 +448,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Server settings widget
   Widget _statusNotConnected() {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(_borderRadius),
-        side: BorderSide(color: colorScheme.outlineVariant),
       ),
       child: Padding(
         padding: const EdgeInsets.all(_padding),
@@ -337,84 +494,85 @@ class _HomeScreenState extends State<HomeScreen> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(_borderRadius),
-        side: BorderSide(color: colorScheme.outlineVariant),
-      ),
-      child: Padding(
+    return Padding(
         padding: const EdgeInsets.all(_padding),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           
           children: [
-            const Text("Server Running", style: TextStyle(fontWeight: FontWeight.bold)),
-
-            const Divider(),
-
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                ValueListenableBuilder(
-                  valueListenable: client.connectedClients,
-                  builder: (context, count, child) {
-                    return Text("Connected Clients: $count");
-                  },
-                ),
+                const Text("Welcome back, USER_NAME", style: TextStyle(fontSize: 30 ,fontWeight: FontWeight.w600)),
+                Row( 
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    // Ping button 
+                    FilledButton.icon(
+                      onPressed: () => {},
+                      icon: const Icon(Icons.network_ping_rounded),
+                      label: const Text("Ping"),
+                      style: FilledButton.styleFrom(
+                        elevation: 0, 
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(_borderRadius),
+                        ),
+                        backgroundColor: colorScheme.primary,
+                      ),
+                    ),
 
-                // Displays device name
-                ValueListenableBuilder(
-                  valueListenable: client.connectedClients, 
-                  builder: (context, name, child) {
-                    return Text("Device: $name");
-                  }
+                    const SizedBox(width: _spacing,),
+
+                    // disconnect button
+                    FilledButton.icon(
+                      onPressed: () => client.stopServer(),
+                      icon: const Icon(Icons.power_off),
+                      label: const Text("Disconnect"),
+                      style: FilledButton.styleFrom(
+                        elevation: 0, 
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(_borderRadius),
+                        ),
+                        backgroundColor: Colors.red,
+                        foregroundColor: colorScheme.surfaceBright,
+                      ),
+                    ),
+
+                  ],
                 )
-
               ],
             ),
 
-            const SizedBox(height: _spacing),
+            const SizedBox(height: _spacing / 2),
 
-            Row( 
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                // stop server button
-                FilledButton.icon(
-                  onPressed: () => client.stopServer(),
-                  icon: const Icon(Icons.power_off),
-                  label: const Text("Stop Server"),
-                  style: FilledButton.styleFrom(
-                    elevation: 0, 
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(_borderRadius),
+            ValueListenableBuilder(
+              valueListenable: client.connectedClients,
+              builder: (context, count, child) {
+                return Row(
+                  mainAxisSize: MainAxisSize.min, // Prevents row from taking too much space
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        color: Colors.greenAccent,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(color: Colors.greenAccent, blurRadius: 4),
+                        ],
+                      ),
                     ),
-                    backgroundColor: Colors.red,
-                    foregroundColor: colorScheme.surfaceBright,
-                  ),
-                ),
-
-                const SizedBox(width: _spacing,),
-
-                // Ping button (for testing)
-                FilledButton.icon(
-                  onPressed: () => {},
-                  icon: const Icon(Icons.network_ping_rounded),
-                  label: const Text("Ping Clients"),
-                  style: FilledButton.styleFrom(
-                    elevation: 0, 
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(_borderRadius),
+                    const SizedBox(width: 8), // Space between dot and text
+                    Text(
+                      "Synced With : $count",
+                      style: const TextStyle(fontSize: 14),
                     ),
-                    backgroundColor: colorScheme.primary,
-                  ),
-                ),
-
-              ],
-            )
-
+                  ],
+                );
+              },
+            ),
           ],
         ),
-      ),
     );
   }
 
@@ -451,14 +609,13 @@ class _HomeScreenState extends State<HomeScreen> {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(_borderRadius),
-        side: BorderSide(color: colorScheme.outlineVariant),
       ),
       clipBehavior: Clip.antiAlias,
 
       child: InkWell(
         onTap: item.onTap,
         child: Padding(
-          padding: const EdgeInsets.all(12.0),
+          padding: const EdgeInsets.all(_padding),
             child: !isDesktop ? 
             // For grid 
             Column(
@@ -508,6 +665,158 @@ class _HomeScreenState extends State<HomeScreen> {
       );
   }
 
+  Widget _infoCardsRow({
+    required double batteryLevel,
+    required bool isCharging,
+    required double volume,
+    required ValueChanged<double> onVolumeChanged,
+    required BuildContext context,
+  }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final cardBgColor = colorScheme.surfaceContainerLow;
+    final batteryColor = isCharging ? Colors.blueAccent : (batteryLevel < 0.2 ? Colors.redAccent : const Color(0xFF4CAF50));
 
+    return IntrinsicHeight( 
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch, 
+        children: [
+          // --- BATTERY CARD ---
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: cardBgColor,
+                borderRadius: BorderRadius.circular(_borderRadius),
+              ),
+              child: Row(
+                children: [
+                  _buildIconWell(
+                    child: _VerticalBattery(level: batteryLevel, color: batteryColor),
+                  ),
+                  const SizedBox(width: 16),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text("Battery", style: TextStyle(color: Colors.white54, fontSize: 13)),
+                      Text("${(batteryLevel * 100).toInt()}%", 
+                          style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white)),
+                      if (isCharging)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4.0),
+                          child: Row(
+                            children: [
+                              Icon(Icons.bolt, size: 14, color: batteryColor),
+                              Text("Charging", style: TextStyle(color: batteryColor, fontSize: 12, fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(width: 12),
+
+          // --- VOLUME CARD ---
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: cardBgColor,
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Row(
+                children: [
+                  _buildIconWell(
+                    child: const Icon(Icons.volume_up, color: Colors.white70, size: 24),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text("Volume", style: TextStyle(color: Colors.white54, fontSize: 13)),
+                        Text("${(volume * 100).toInt()}%", 
+                            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white)),
+                        const SizedBox(height: 8),
+
+                        SliderTheme(
+                          data: SliderTheme.of(context).copyWith(
+                            trackHeight: 4,
+                            activeTrackColor: const Color(0xFF448AFF),
+                            inactiveTrackColor: Colors.white10,
+                            thumbColor: const Color(0xFF90CAF9),
+                            overlayShape: SliderComponentShape.noOverlay,
+                            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                          ),
+                          child: SizedBox(
+                            width: double.infinity,
+                            child: Slider(
+                              value: volume,
+                              onChanged: onVolumeChanged, 
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIconWell({required Widget child}) {
+    return Container(
+      width: 54,
+      height: 54,
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.03),
+        shape: BoxShape.circle,
+      ),
+      child: Center(child: child),
+    );
+  }
 }
 
+
+class _VerticalBattery extends StatelessWidget {
+  final double level;
+  final Color color;
+  const _VerticalBattery({required this.level, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(width: 6, height: 2, decoration: BoxDecoration(color: color.withValues(alpha: 0.4), borderRadius: BorderRadius.circular(1))),
+        Container(
+          width: 18,
+          height: 30,
+          padding: const EdgeInsets.all(2),
+          decoration: BoxDecoration(
+            border: Border.all(color: color.withValues(alpha: 0.4), width: 1.5),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: Container(
+              height: 24 * level,
+              width: double.infinity,
+              decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(1)),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}

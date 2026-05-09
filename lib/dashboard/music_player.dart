@@ -111,7 +111,7 @@ class _MusicPlayerWidgetState extends State<MusicPlayerWidget> {
     }
   }
 
-  @override
+@override
   Widget build(BuildContext context) {
     final theme = _dynamicScheme ?? Theme.of(context).colorScheme;
 
@@ -120,131 +120,137 @@ class _MusicPlayerWidgetState extends State<MusicPlayerWidget> {
       child: Builder(builder: (context) {
         final localTheme = Theme.of(context).colorScheme;
 
-        return Container(
-          margin: const EdgeInsets.all(5),
-          height: 200,
-          clipBehavior: Clip.antiAlias,
+        return AspectRatio(
+          aspectRatio: 1, 
+          child: Container(
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              color: localTheme.surfaceContainerHigh,
+              borderRadius: BorderRadius.circular(28),
+            ),
+            child: Stack(
+              children: [
+                // Background Image
+                Positioned.fill(
+                  child: _cacheImageBytes != null
+                      ? Image.memory(
+                          _cacheImageBytes!,
+                          fit: BoxFit.cover,
+                          gaplessPlayback: true,
+                        )
+                      : Container(color: localTheme.surfaceContainer),
+                ),
 
-          decoration: BoxDecoration(
-            color: localTheme.surfaceContainer,
-            borderRadius: BorderRadius.circular(28),
-          ),
-          
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: _cacheImageBytes != null
-                  ? SizedBox.expand(
-                      child: Image.memory(
-                        _cacheImageBytes!, 
-                        fit: BoxFit.cover,
-                        gaplessPlayback: true,
+                // Consistent Dark Scrim
+                Positioned.fill(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          localTheme.scrim.withValues(alpha: 0.8),
+                          localTheme.scrim.withValues(alpha: 0.4),
+                          localTheme.scrim.withValues(alpha: 0.9),
+                        ],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
                       ),
-                    )
-                  : Container(color: localTheme.surfaceContainer), // Fallback if no art
-              ),
-
-              Positioned.fill(
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        localTheme.surface.withValues(alpha: 1.0),
-                        localTheme.scrim.withValues(alpha: 0.0),
-                      ],
-                      begin: Alignment.centerLeft,
-                      end: Alignment.centerRight,
                     ),
                   ),
                 ),
-              ),
 
-              // Layout Content
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(child: 
-                          _TrackInfo(
-                            name: widget.trackName,
-                            artist: widget.artistName,
-                            theme: localTheme,
-                          ),
-                        ),
+                // UI Content
+                Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Song Info at the Top
+                      _TrackInfo(
+                        name: widget.trackName,
+                        artist: widget.artistName,
+                        theme: localTheme,
+                      ),
+                      
+                      const Spacer(),
 
-                          // Play button
-                        IconButton(
-                          onPressed: () {
-                            widget.client!.send(
-                              'music',
-                              'control',
-                              {'method' : 'play_pause'},
-                            );
-                          },
-                          icon: Icon(
-                            widget.status == 'Playing' ? Icons.pause_outlined : Icons.play_arrow_outlined,
-                            size: 25
-                          ),
-                          color: theme.primaryContainer,
-                          style: IconButton.styleFrom(
-                            backgroundColor: theme.onPrimaryContainer,
-                            shape: const CircleBorder(),
-                            padding: const EdgeInsets.all(15),
-                          ),
-                        ),
-                      ],
-                    ),
+                      // Progress Bar
+                      MusicProgressSlider(
+                        theme: theme,
+                        duration: widget.duration.toDouble(),
+                        position: widget.position.toDouble(),
+                        status: widget.status,
+                        client: widget.client,
+                      ),
+                      
+                      const SizedBox(height: 12),
 
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(child: 
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(0, 0, 8, 0),
-                            child:
-                            MusicProgressSlider(
-                              theme: theme,
-                              duration: widget.duration.toDouble(),
-                              position: widget.position.toDouble(),
-                              status: widget.status,
-                              client: widget.client,
+                      // Control
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          // Previous Button
+                          IconButton(
+                            onPressed: () {
+                              widget.client!.send('music', 'control', {'method': 'previous'});
+                            },
+                            icon: const Icon(Icons.skip_previous_rounded, size: 26),
+                            style: IconButton.styleFrom(
+                              backgroundColor: localTheme.onPrimary,
+                              foregroundColor: localTheme.primary,
+                              padding: const EdgeInsets.all(12),
                             ),
-                          )
-                        ),
-                        
-                        _ControlButtons(
-                          theme: localTheme,
-                          onNext: () {
-                            widget.client!.send(
-                                'music',
-                                'control',
-                                {'method' : 'next'},
-                            );
-                          },
-                          onPrev: () {
-                            widget.client!.send(
-                                'music',
-                                'control',
-                                {'method' : 'previous'},
-                            ); 
-                          },
-                        ),
-                      ],
-                    ),
-                  ],
+                          ),
+                          
+                          const SizedBox(width: 16),
+
+                          // Primary Play/Pause Button
+                          IconButton.filled(
+                            onPressed: () {
+                              widget.client!.send('music', 'control', {'method': 'play_pause'});
+                            },
+                            iconSize: 40,
+                            icon: Icon(
+                              widget.status == 'Playing' ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                            ),
+                            style: IconButton.styleFrom(
+                              backgroundColor: localTheme.primary,
+                              foregroundColor: localTheme.onPrimary,
+                              padding: const EdgeInsets.all(12),
+                            ),
+                          ),
+
+                          const SizedBox(width: 16),
+
+                          // Next Button
+                          IconButton(
+                            onPressed: () {
+                              widget.client!.send('music', 'control', {'method': 'next'});
+                            },
+                            icon: const Icon(Icons.skip_next_rounded, size: 26),
+                            style: IconButton.styleFrom(
+                              backgroundColor: localTheme.onPrimary,
+                              foregroundColor: localTheme.primary,
+                              padding: const EdgeInsets.all(12),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       }),
     );
   }
+
+
 }
+
+// ---------------------------     Title info and shi     ---------------------------------------------
+
 
 class _TrackInfo extends StatelessWidget {
   final String name;
@@ -266,60 +272,17 @@ class _TrackInfo extends StatelessWidget {
           name,
           style: TextStyle(
             color: theme.onSecondaryContainer,
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
+            fontSize: 22,
+            fontWeight: FontWeight.w600,
           ),
           overflow: TextOverflow.ellipsis,
           maxLines: 1,
         ),
         Text(
           artist,
-          style: TextStyle(color: theme.onSurfaceVariant, fontSize: 12),
+          style: TextStyle(color: theme.onSurfaceVariant, fontSize: 16),
           overflow: TextOverflow.ellipsis,
           maxLines: 1,
-        ),
-      ],
-    );
-  }
-}
-
-class _ControlButtons extends StatelessWidget {
-  final ColorScheme theme;
-  final VoidCallback onNext;
-  final VoidCallback onPrev;
-
-  const _ControlButtons({
-    required this.theme,
-    required this.onNext,
-    required this.onPrev,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.end,
-      children: [
-        // PREVIOUS BUTTON
-        IconButton(
-          onPressed: onPrev,
-          icon: const Icon(Icons.skip_previous_outlined),
-          color: theme.onSecondaryContainer,
-          style: IconButton.styleFrom(
-            backgroundColor: theme.secondaryContainer,
-            shape: const CircleBorder(),
-          ),
-        ),
-        const SizedBox(width: 3),
-
-        // NEXT BUTTON
-        IconButton(
-          onPressed: onNext,
-          icon: const Icon(Icons.skip_next_outlined),
-          color: theme.onSecondaryContainer,
-          style: IconButton.styleFrom(
-            backgroundColor: theme.secondaryContainer,
-            shape: const CircleBorder(),
-          ),
         ),
       ],
     );
