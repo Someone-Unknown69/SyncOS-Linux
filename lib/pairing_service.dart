@@ -1,8 +1,7 @@
 import 'package:flutter/foundation.dart';
-import 'dart:convert';
 import 'dart:math';
-import 'package:shelf/shelf.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:io';
 
 class PairingService {
   String pairingToken = '';
@@ -25,14 +24,22 @@ class PairingService {
       await prefs.setString('pairing_token', pairingToken);
       debugPrint('[Pairing] Generated New Security Token: $pairingToken');
     }
-    
-    debugPrint('[Pairing] QR Data to generate: {"ip": "YOUR_IP", "port": $port, "token": "$pairingToken"}');
+
+    String currentIP = await getLocalIP();
+    debugPrint('[Pairing] QR Data for current network: {"ip": "$currentIP", "port": $port, "token": "$pairingToken"}');    
   }
 
-  // Use this for the HTTP Handshake
-  Response handleHandshake(Request request) {
-    // In a production app, verify the token sent by the mobile app here
-    return Response.ok(jsonEncode({'status': 'authorized'}));
+  Future<String> getLocalIP() async {
+    // Iterates through network interfaces (Wi-Fi, Ethernet)
+    for (var interface in await NetworkInterface.list()) {
+      for (var addr in interface.addresses) {
+        // Look for an IPv4 address that isn't the loopback (127.0.0.1)
+        if (addr.type == InternetAddressType.IPv4 && !addr.isLoopback) {
+          return addr.address;
+        }
+      }
+    }
+    return '127.0.0.1';
   }
 
   Future<void> dispose() async {}

@@ -4,8 +4,7 @@ import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'services/music.dart';
-import 'services/battery_info.dart';
-import 'services/http_server.dart';
+import 'services/device_info.dart';
 import 'pairing_service.dart';
 import 'services/handle_request.dart';
 
@@ -21,15 +20,20 @@ class SocketServer extends ChangeNotifier{
   
   final BytesBuilder _buffer = BytesBuilder();
 
-  // Defining socketserver
-  SocketServer({required PairingService pairingService}) : _pairingService = pairingService;
-
   // --------------------------------     Services       ----------------------------------------
   final MediaPoller _mediaPoller = MediaPoller();
   final BatteryMonitorServiceLinux _batteryMonitorServiceLinux = BatteryMonitorServiceLinux();
-  SimpleHttpServer? _httpServer;
   final PairingService _pairingService;
   final requestHandler = HandleRequest();
+
+  // -------------------------------      Instance       --------------------------------------
+  static SocketServer? _instance;
+  static SocketServer get instance => _instance!;
+  factory SocketServer({required PairingService pairingService}) {
+    _instance ??= SocketServer._internal(pairingService);
+    return _instance!;
+  }
+  SocketServer._internal(this._pairingService);
 
   // -------------------------------    Connection Information    ---------------------------------
   final ValueNotifier<int> connectedClients = ValueNotifier<int>(0);
@@ -38,28 +42,25 @@ class SocketServer extends ChangeNotifier{
 
   // ---------------------------------    Getters    -------------------------------------------- 
   Stream<Map<String, dynamic>> get messageStream => _messageController.stream;
+  String? get connectedClientIP => _client?.remoteAddress.address;
 
   // --------------------------------     Methods    --------------------------------------------
 
   // Asynchronous method to start server and listen for connections
   Future<void> startServer(int port) async {
     try {
-      debugPrint('Starting server on port $port...');
-      
-      // Start HTTP Server
-      _httpServer = SimpleHttpServer(port: port + 1, pairingToken: _pairingService.pairingToken);
-      await _httpServer!.start();
+      debugPrint('[Socket] Starting server on port $port...');
 
       _server = await ServerSocket.bind(InternetAddress.anyIPv4, port);
 
       connectionStatus.value = true;
-      debugPrint('Server started successfully');
+      debugPrint('[Socket] Server started successfully');
 
       _server!.listen((Socket socket) {
-        debugPrint('Client attempting to connect: ${socket.remoteAddress.address}:${socket.remotePort}');
+        debugPrint('[Socket] Client attempting to connect: ${socket.remoteAddress.address}:${socket.remotePort}');
         socket.setOption(SocketOption.tcpNoDelay, true);
         if (_client != null || _pendingSocket != null) {
-          debugPrint('Rejecting connection: already have a client or pending');
+          debugPrint('[Socket] Rejecting connection: already have a client or pending');
           socket.close();
           return;
         }
@@ -74,7 +75,7 @@ class SocketServer extends ChangeNotifier{
 
     } catch (e) {
       connectionStatus.value = false;
-      debugPrint('Error while starting server: $e');
+      debugPrint('[Socket] Error while starting server: $e');
     }
   }
 
@@ -134,12 +135,12 @@ class SocketServer extends ChangeNotifier{
     try {
       _sendRaw('ACCEPTED');
     } catch (e) {
-      debugPrint('Handshake failed: $e');
+      debugPrint('[Pairing] Handshake failed: $e');
     }
 
     requestHandler.setMediaPoller(_mediaPoller);
     _mediaPoller.start(send);
-    _batteryMonitorServiceLinux.start(send); 
+    _batteryMonitorServiceLinux.start(); 
 
 
     notifyListeners();
@@ -153,7 +154,7 @@ class SocketServer extends ChangeNotifier{
         _pendingSocket!.add(lengthBytes.buffer.asUint8List());
         _pendingSocket!.add(jsonData);
       } catch (e) {
-        debugPrint('Failed to send reject response: $e');
+        debugPrint('[Reject] Failed to send reject response: $e');
       }
       _pendingSocket!.destroy();
       _pendingSocket = null;
@@ -166,7 +167,6 @@ class SocketServer extends ChangeNotifier{
   void stopServer() {
     _handleDisconnect();
     _server?.close();
-    _httpServer?.stop();
     connectionStatus.value = false;
   }
 
@@ -198,20 +198,20 @@ class SocketServer extends ChangeNotifier{
       
       if (socket == _pendingSocket) {
         if (data['op'] == 'auth' && data['token'] == _pairingService.pairingToken) {
-          debugPrint('Auto-accepting connection from authenticated client.');
+          debugPrint('[Pairing] Auto-accepting connection from authenticated client.');
           acceptConnection();
         } else {
-          debugPrint('Invalid auth token, rejecting.');
+          debugPrint('[Pairing] Invalid auth token, rejecting.');
           rejectConnection();
         }
         return;
       }
-      debugPrint('Received command: $command');
+      debugPrint('[Handle] Received command: $command');
 
       requestHandler.handle(command);
       return;
     } catch (e) {
-      debugPrint("Error in handling Command $e");
+      debugPrint("[Handle] Error in handling Command $e");
     }
   }
 
@@ -233,7 +233,7 @@ class SocketServer extends ChangeNotifier{
       _client!.add(lengthBytes.buffer.asUint8List());
       _client!.add(jsonData);
     } catch (e) {
-      debugPrint('Send error: $e');
+      debugPrint('[Send] Send error: $e');
       _handleDisconnect();
     }
   }
@@ -247,7 +247,7 @@ class SocketServer extends ChangeNotifier{
       socket.add(lengthBytes.buffer.asUint8List());
       socket.add(jsonData);
     } catch (e) {
-      debugPrint('Send raw error: $e');
+      debugPrint('[Send] Send raw error: $e');
     }
   }
 }

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:laptop_controller/socket_server.dart';
 
 // --------------------------------     For Linux     -------------------------------------------------
 class BatteryMonitorServiceLinux{
@@ -9,10 +10,10 @@ class BatteryMonitorServiceLinux{
   StreamSubscription? _subscription;
   final String _batPath = '/sys/class/power_supply/BAT0';
 
-  void start(void Function(String op, String action, Map<String, dynamic> args) onSend) {
+  void start() {
     // send at the connection start
 
-    onSend('battery_info', '', {
+    SocketServer.instance.send('battery_info', '', {
       'level': _readBattery()?.level,
       'status': _readBattery()?.isCharging,
     });
@@ -26,7 +27,7 @@ class BatteryMonitorServiceLinux{
         _lastLevel = data.level;
         _lastCharging = data.isCharging;
 
-        onSend('battery_info', '', {
+        SocketServer.instance.send('battery_info', '', {
           'level': data.level,
           'status': data.isCharging,
           'device': Platform.localHostname, 

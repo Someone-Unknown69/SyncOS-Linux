@@ -6,6 +6,7 @@ import 'dart:io';
 import 'dashboard/music_player.dart';
 import 'pairing_service.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'services/file_transfer.dart';
 
 final processor = HandleRequest();
 
@@ -95,7 +96,10 @@ class _HomeScreenState extends State<HomeScreen> {
     DashboardItem(
       label: 'Send Files',
       icon: Icons.file_copy,
-      onTap: () => (),
+      onTap: () async {
+        final transfer = FileTransfer();
+        await transfer.sendFile();
+      },
     ),
     DashboardItem(
       label: 'Run Command',

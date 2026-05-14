@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'music.dart';
 import 'usb_controller.dart';
+import 'file_transfer.dart';
 
 // Metadata class
 class MediaMetadata {
@@ -65,11 +66,14 @@ class MediaMetadata {
 class HandleRequest {
   static final HandleRequest _instance = HandleRequest._internal();
   factory HandleRequest() => _instance;
+
+  // edit this to add or remove service handlers
   HandleRequest._internal() {
     _handlers = {
       "battery_info": _handleBattery,
       "music": _handleMusic,
       "controller" : _handleController,
+      "file_transfer": _handleFTP,
     };
   }
 
@@ -159,7 +163,7 @@ class HandleRequest {
       if(_mediaPoller != null) {
         _mediaPoller!.control(args);
       } else {
-        debugPrint('Error: MediaPoller not set in HandleRequest');
+        debugPrint('[Handle music] Error: MediaPoller not set in HandleRequest');
       }
     }
   }
@@ -169,6 +173,20 @@ class HandleRequest {
     final args = data['args'];
     if(action != null) {
       ControllerService().keyPress(action, args['button']);
+    }
+  }
+
+  void _handleFTP(Map<String, dynamic> data) {
+    final action = data['action'];
+    final args = data['args'];
+
+    if(action == 'send') {
+      // file requested from other device
+      // will add later
+    } else if (action == 'recieve') {
+      FileTransfer().recieveFile(args);
+    } else {
+      debugPrint('[Handler FTP] Invalid action');
     }
   }
 
