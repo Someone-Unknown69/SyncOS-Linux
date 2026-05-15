@@ -8,6 +8,7 @@ import 'pairing_service.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'services/file_transfer.dart';
 
+final GlobalKey<ScaffoldMessengerState> snackbarKey = GlobalKey<ScaffoldMessengerState>();
 final processor = HandleRequest();
 
 class DashboardItem {
@@ -61,6 +62,8 @@ class RemoteControllerApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      title: 'SyncOS',
+      scaffoldMessengerKey: snackbarKey,
       debugShowCheckedModeBanner: false,      // Hides the debug banner
       theme: _buildTheme(Brightness.light),
       darkTheme: _buildTheme(Brightness.dark),
@@ -98,7 +101,34 @@ class _HomeScreenState extends State<HomeScreen> {
       icon: Icons.file_copy,
       onTap: () async {
         final transfer = FileTransfer();
-        await transfer.sendFile();
+        final String? filePath = await transfer.pickFile();
+
+        if(filePath == null) {
+          debugPrint("[FTP] User cancelled file selection");
+          return;
+        }
+
+        final file = File(filePath);
+        final fileName = file.path.split(Platform.pathSeparator).last;
+        final fileSize = await file.length();
+
+        final progress = ValueNotifier<double>(0.0);
+          
+        final task = transfer.sendFile(
+          filePath,
+          onProgress: (p) => progress.value = p,
+        );
+
+        TransferSnackbar.show(
+          label: "Sending File",
+          fileName: fileName,
+          fileSize: fileSize,
+          progressNotifier: progress,
+          task: task,
+          onCancel: () {
+            debugPrint("[FTP] File : $fileName Transfer Cancelled");
+          }
+        );
       },
     ),
     DashboardItem(
