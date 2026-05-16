@@ -7,6 +7,7 @@ import 'dashboard/music_player.dart';
 import 'pairing_service.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'services/file_transfer.dart';
+import 'dashboard/info_cards.dart';
 
 final GlobalKey<ScaffoldMessengerState> snackbarKey = GlobalKey<ScaffoldMessengerState>();
 final processor = HandleRequest();
@@ -240,16 +241,16 @@ class _HomeScreenState extends State<HomeScreen> {
                                         Expanded(
                                           child: Column(
                                             children: [
-                                              _infoCardsRow(
-                                                batteryLevel: 0.85, // Pass real data here
-                                                isCharging: false,
-                                                volume: 0.5, // State variable from your parent widget
+                                              infoCardsRow(
+                                                batteryLevelNotifier: processor.batteryLevel,
+                                                isChargingNotifier: processor.isCharging,
+                                                volumeNotifier: processor.volume, // State variable from your parent widget
                                                 context: context,
                                                 onVolumeChanged: (val) {
-                                                  // setState(() => _currentVolume = val);
-                                                  // client.send(...) logic here
-                                                },
-                                              ),
+                                                    // setState(() => _currentVolume = val);
+                                                    // client.send(...) logic here
+                                                  },
+                                                ),
 
                                               const SizedBox(height: _spacing),
 
@@ -698,159 +699,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
   }
-
-  Widget _infoCardsRow({
-    required double batteryLevel,
-    required bool isCharging,
-    required double volume,
-    required ValueChanged<double> onVolumeChanged,
-    required BuildContext context,
-  }) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final cardBgColor = colorScheme.surfaceContainerLow;
-    final batteryColor = isCharging ? Colors.blueAccent : (batteryLevel < 0.2 ? Colors.redAccent : const Color(0xFF4CAF50));
-
-    return IntrinsicHeight( 
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch, 
-        children: [
-          // --- BATTERY CARD ---
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: cardBgColor,
-                borderRadius: BorderRadius.circular(_borderRadius),
-              ),
-              child: Row(
-                children: [
-                  _buildIconWell(
-                    child: _VerticalBattery(level: batteryLevel, color: batteryColor),
-                  ),
-                  const SizedBox(width: 16),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text("Battery", style: TextStyle(color: Colors.white54, fontSize: 13)),
-                      Text("${(batteryLevel * 100).toInt()}%", 
-                          style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white)),
-                      if (isCharging)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4.0),
-                          child: Row(
-                            children: [
-                              Icon(Icons.bolt, size: 14, color: batteryColor),
-                              Text("Charging", style: TextStyle(color: batteryColor, fontSize: 12, fontWeight: FontWeight.bold)),
-                            ],
-                          ),
-                        ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(width: 12),
-
-          // --- VOLUME CARD ---
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: cardBgColor,
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: Row(
-                children: [
-                  _buildIconWell(
-                    child: const Icon(Icons.volume_up, color: Colors.white70, size: 24),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text("Volume", style: TextStyle(color: Colors.white54, fontSize: 13)),
-                        Text("${(volume * 100).toInt()}%", 
-                            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white)),
-                        const SizedBox(height: 8),
-
-                        SliderTheme(
-                          data: SliderTheme.of(context).copyWith(
-                            trackHeight: 4,
-                            activeTrackColor: const Color(0xFF448AFF),
-                            inactiveTrackColor: Colors.white10,
-                            thumbColor: const Color(0xFF90CAF9),
-                            overlayShape: SliderComponentShape.noOverlay,
-                            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                          ),
-                          child: SizedBox(
-                            width: double.infinity,
-                            child: Slider(
-                              value: volume,
-                              onChanged: onVolumeChanged, 
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildIconWell({required Widget child}) {
-    return Container(
-      width: 54,
-      height: 54,
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.03),
-        shape: BoxShape.circle,
-      ),
-      child: Center(child: child),
-    );
-  }
 }
 
 
-class _VerticalBattery extends StatelessWidget {
-  final double level;
-  final Color color;
-  const _VerticalBattery({required this.level, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(width: 6, height: 2, decoration: BoxDecoration(color: color.withValues(alpha: 0.4), borderRadius: BorderRadius.circular(1))),
-        Container(
-          width: 18,
-          height: 30,
-          padding: const EdgeInsets.all(2),
-          decoration: BoxDecoration(
-            border: Border.all(color: color.withValues(alpha: 0.4), width: 1.5),
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Align(
-            alignment: Alignment.bottomCenter,
-            child: Container(
-              height: 24 * level,
-              width: double.infinity,
-              decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(1)),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}

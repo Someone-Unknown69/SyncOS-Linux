@@ -74,6 +74,7 @@ class HandleRequest {
       "music": _handleMusic,
       "controller" : _handleController,
       "file_transfer": _handleFTP,
+      'device_info': _handleDeviceInfo
     };
   }
 
@@ -82,9 +83,10 @@ class HandleRequest {
   MediaPoller? _mediaPoller;
 
   /// Device Information
-  final ValueNotifier<int> batteryLevel = ValueNotifier<int>(0);
+  final ValueNotifier<double> batteryLevel = ValueNotifier<double>(0);
   final ValueNotifier<String> deviceName = ValueNotifier<String>("Unknown");
   final ValueNotifier<bool> isCharging = ValueNotifier<bool>(false);
+  final ValueNotifier<double> volume = ValueNotifier<double>(0);
   
   final ValueNotifier<MediaMetadata> metadata = ValueNotifier(MediaMetadata.initial());
 
@@ -122,11 +124,14 @@ class HandleRequest {
 
   void _handleBattery(Map<String, dynamic> data) {
     final args = data['args'];
-    batteryLevel.value = args['level'] ?? 0;
+    batteryLevel.value = ((args['level'] as num? ?? 0).toDouble() / 100.0);
     isCharging.value = args['status'] ?? false;
-    deviceName.value = args['device'] ?? "Unknown";
   }
 
+  void _handleDeviceInfo(Map<String, dynamic> data) {
+    final args = data['args'];
+    deviceName.value = args['name'] ?? "Unknown";
+  }
 
   void _handleMusic(Map<String, dynamic> data) {
     final action = data['action'];
