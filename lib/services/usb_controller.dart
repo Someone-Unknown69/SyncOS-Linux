@@ -10,26 +10,42 @@ class ControllerService {
   final LinuxDriver _driver = LinuxDriver();
   bool _initialized = false;
 
+  final Map<String, int> _pressTimestamps = {};
+  static const int _minHoldDurationMs = 18; // Slightly longer than a 60Hz frame (16.6ms)
+
   void init() {
     if (_initialized) return;
     _driver.init();
     _initialized = true;
   }
 
-  void keyPress(String action, String keyName) {
+  void keyPress(String action, String keyName) async {
     if (!_initialized) init();
     final keyCode = LinuxDriver.keyMap[keyName];
 
+
     if(keyCode != null) {
-      if(action == 'up') {
-        _driver.keyPressUp(keyCode);
-      } else if(action == 'down') {
+      if(action == 'down') {
+        _pressTimestamps[keyName] = DateTime.now().millisecondsSinceEpoch;
         _driver.keyPressDown(keyCode);
+      } else if(action == 'up') {
+
+        final startTime = _pressTimestamps[keyName];
+
+        if (startTime != null) {
+          // If released too fast, wait out the remaining time of the minimum frame threshold
+          while ((DateTime.now().millisecondsSinceEpoch - startTime) < _minHoldDurationMs) {
+            // Spin inline to hold the kernel event open precisely across the frame boundary
+          }
+          _pressTimestamps.remove(keyName);
+        }
+
+        _driver.keyPressUp(keyCode);
       } else {
-        debugPrint("Invalid key action");
+        debugPrint("[Gamepad] Invalid key action");
       }
     } else {
-      debugPrint("Unknown key: $keyName");
+      debugPrint("[Gamepad] Unknown key: $keyName");
     }
   }
 
@@ -47,8 +63,8 @@ class ControllerService {
 
 // C input struct for 'input_event'
 sealed class InputEvent extends Struct {
-  @Int64() external int tvSec; // Timestamp (Seconds)
-  @Int64() external int tvUsec; // Timestamp (Microseconds)
+  @Int64() external int timeSec;   // tv_sec
+  @Int64() external int timeUsec;  // tv_usec
   @Uint16() external int type; // Type : mouse or keyboard or etc (constants defined below)
   @Uint16() external int code; // The key (e.g... J is 36)
   @Int32() external int value; // 1 : Pressed, 0 : Released
@@ -100,11 +116,12 @@ class LinuxDriver {
   late final _write = libc.lookupFunction<IntPtr Function(Int32, Pointer<Void>, IntPtr), int Function(int, Pointer<Void>, int)>('write');
   late final _ioctl = libc.lookupFunction<Int32 Function(Int32, Uint64, IntPtr), int Function(int, int, int)>('ioctl');
   late final _close = libc.lookupFunction<Int32 Function(Int32), int Function(int)>('close');
+  late final _gettimeofday = libc.lookupFunction<Int32 Function(Pointer<Void>, Pointer<Void>), int Function(Pointer<Void>, Pointer<Void>)>('gettimeofday');
 
   void init() {
     fd = _open('/dev/uinput'.toNativeUtf8(), 6); // O_WRONLY (2) | O_NONBLOCK (4)
     if (fd < 0) {
-      debugPrint("Error: Could not open /dev/uinput. Do you have root permissions?");
+      debugPrint("[Gamepad] Error: Could not open /dev/uinput, Ensure root permissions");
       return;
     }
 
@@ -118,6 +135,12 @@ class LinuxDriver {
 
     using((Arena arena) {
       final Pointer<UInputUserSetup> setup = arena<UInputUserSetup>();
+
+      final Pointer<Uint8> rawSetupBytes = setup.cast<Uint8>();
+      for (int i = 0; i < sizeOf<UInputUserSetup>(); i++) {
+        rawSetupBytes[i] = 0;
+      }
+
       setup.ref.idBus = 0x03; // For USB
 
       final Pointer<Uint8> nameBuffer = setup.cast<Uint8>() + 8;
@@ -135,42 +158,42 @@ class LinuxDriver {
     });
   }
 
-  void keyPressUp(int keyCode) {
+  void _sendEvent(int type, int code, int value) {
     if (fd < 0) return;
 
     using((Arena arena) {
-      final event = arena<InputEvent>();
-      event.ref.type = EV_KEY; // MUST RESET TO EV_KEY
-      event.ref.code = keyCode;
-      event.ref.value = 0; // Released
-      _write(fd, event.cast(), sizeOf<InputEvent>());
+      final Pointer<InputEvent> event = arena<InputEvent>();
+      
+      // Zero out raw struct memory space completely to scrub baseline heap garbage
+      final Pointer<Uint8> rawEventBytes = event.cast<Uint8>();
+      for (int i = 0; i < sizeOf<InputEvent>(); i++) {
+        rawEventBytes[i] = 0;
+      }
 
-      // Sync
-      event.ref.type = EV_SYN;
-      event.ref.code = SYN_REPORT;
-      event.ref.value = 0;
+      // Inject real system monotonic epoch parameters into the target trace fields
+      final Pointer<Uint64> timevalStruct = arena<Uint64>(2); 
+      _gettimeofday(timevalStruct.cast(), nullptr);
+      
+      event.ref.timeSec = timevalStruct[0];
+      event.ref.timeUsec = timevalStruct[1];
+      event.ref.type = type;
+      event.ref.code = code;
+      event.ref.value = value;
+
       _write(fd, event.cast(), sizeOf<InputEvent>());
     });
+  }
+
+  void keyPressUp(int keyCode) {
+    _sendEvent(EV_KEY, keyCode, 0); // Key action execution
+    _sendEvent(EV_SYN, SYN_REPORT, 0); // Flush sync stack framework instantly
   }
 
   void keyPressDown(int keyCode) {
-    if(fd < 0) return;
-
-    using((Arena arena) {
-      final event = arena<InputEvent>();
-      event.ref.type = EV_KEY;
-      event.ref.code = keyCode;
-      event.ref.value = 1; // Pressed
-      _write(fd, event.cast(), sizeOf<InputEvent>());
-
-      // Sync
-      event.ref.type = EV_SYN;
-      event.ref.code = SYN_REPORT;
-      event.ref.value = 0;
-      _write(fd, event.cast(), sizeOf<InputEvent>());
-    });
+    _sendEvent(EV_KEY, keyCode, 1); // Key action execution
+    _sendEvent(EV_SYN, SYN_REPORT, 0); // Flush sync stack framework instantly
   }
-
+  
   void dispose() {
     debugPrint("Virtual keyboard disposed successfully");
     _ioctl(fd, 0x5502, 0); // UI_DEV_DESTROY: Tell kernel to remove the device
