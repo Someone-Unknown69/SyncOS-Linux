@@ -67,7 +67,6 @@ class HandleRequest {
   static final HandleRequest _instance = HandleRequest._internal();
   factory HandleRequest() => _instance;
 
-  // edit this to add or remove service handlers
   HandleRequest._internal() {
     _handlers = {
       "battery_info": _handleBattery,
@@ -90,23 +89,18 @@ class HandleRequest {
   
   final ValueNotifier<MediaMetadata> metadata = ValueNotifier(MediaMetadata.initial());
 
+  // Optimistic update for UI responsiveness
+  void updateStatus(String newStatus) {
+    metadata.value = metadata.value.copyWith(status: newStatus);
+  }
+
   void setMediaPoller(MediaPoller mediaPoller) {
     _mediaPoller = mediaPoller;
   }
 
   void handle(String rawJson) {
     try {
-      // Handle plain text commands (PING, ACCEPTED, REJECTED, etc.)
-      if (rawJson == "PING") {
-        debugPrint("Received PING from client");
-        return;
-      }
-      if (rawJson == "ACCEPTED" || rawJson == "REJECTED") {
-        debugPrint("Received handshake response: $rawJson");
-        return;
-      }
-
-      // Parse as JSON for regular commands
+      debugPrint('Command recieved $rawJson');
       final data = jsonDecode(rawJson);
       final op = data['op'];
 
@@ -116,7 +110,7 @@ class HandleRequest {
         debugPrint("Unknown operation: $op");
       }
     } catch (e) {
-      debugPrint("Error in handling Command $e");
+      debugPrint("Routing error: $e");
     }
   }
 
@@ -138,6 +132,8 @@ class HandleRequest {
     final args = data['args'];
 
     if(action == 'update_metadata') {
+      debugPrint("Updated metadata recieved : $args");
+
       final newTitle = args['title'] ?? 'Unknown';
       final oldTitle = metadata.value.title;
 
@@ -189,6 +185,7 @@ class HandleRequest {
       // file requested from other device
       // will add later
     } else if (action == 'recieve') {
+      debugPrint('$args');
       FileTransfer().recieveFile(args);
     } else {
       debugPrint('[Handler FTP] Invalid action');

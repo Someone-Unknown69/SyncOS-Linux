@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../theme/app_theme.dart';
 
 /// Battery and Volume telemetry cards 
 Widget infoCardsRow({
@@ -24,7 +25,7 @@ Widget infoCardsRow({
           ),
         ),
 
-        const SizedBox(width: 12),
+        const SizedBox(width: AppTheme.spacing),
 
         // --- MODULAR VOLUME CARD ---
         Expanded(
@@ -67,10 +68,10 @@ class _BatteryCard extends StatelessWidget {
                 : (batteryLevel < 0.2 ? Colors.redAccent : const Color(0xFF4CAF50));
 
             return Container(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(AppTheme.padding),
               decoration: BoxDecoration(
                 color: cardBgColor,
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: BorderRadius.circular(AppTheme.borderRadius),
               ),
               child: Row(
                 children: [
@@ -124,10 +125,10 @@ class _VolumeCard extends StatelessWidget {
       valueListenable: volumeNotifier,
       builder: (context, volume, _) {
         return Container(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(AppTheme.padding),
           decoration: BoxDecoration(
             color: cardBgColor,
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(AppTheme.borderRadius),
           ),
           child: Row(
             children: [

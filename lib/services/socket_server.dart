@@ -3,10 +3,10 @@ import 'dart:io';
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
-import 'services/music.dart';
-import 'services/device_info.dart';
+import 'music.dart';
+import 'device_info.dart';
 import 'pairing_service.dart';
-import 'services/handle_request.dart';
+import 'handle_request.dart';
 
 // --------------------------------    Socket Class      -------------------------------------------------
  

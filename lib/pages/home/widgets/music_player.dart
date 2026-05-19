@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:io';
-import '../socket_server.dart';
+import '../../../services/socket_server.dart';
+import '../../../theme/app_theme.dart';
 import 'dart:math';
 
 // -------------------------------      Music Widget     -------------------------------------------
@@ -126,7 +127,7 @@ class _MusicPlayerWidgetState extends State<MusicPlayerWidget> {
             clipBehavior: Clip.antiAlias,
             decoration: BoxDecoration(
               color: localTheme.surfaceContainerHigh,
-              borderRadius: BorderRadius.circular(28),
+              borderRadius: BorderRadius.circular(AppTheme.musicPlayerRadius),
             ),
             child: Stack(
               children: [

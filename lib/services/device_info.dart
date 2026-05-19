@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:io';
-import 'package:laptop_controller/socket_server.dart';
+import 'socket_server.dart';
 
 // --------------------------------     For Linux     -------------------------------------------------
 class BatteryMonitorServiceLinux{
