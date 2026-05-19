@@ -49,6 +49,19 @@ class ControllerService {
     }
   }
 
+  // --- ANALOG STICK UPDATES ---
+  /// Updates the absolute axes positioning for Analog Sticks
+  /// Expects normalized values [x] and [y] ranging from -1.0 to 1.0
+  void updateLeftStick(double x, double y) {
+    if (!_initialized) init();
+    _driver.updateLeftAnalog(x, y);
+  }
+
+  void updateRightStick(double x, double y) {
+    if (!_initialized) init();
+    _driver.updateRightAnalog(x, y);
+  }
+
   void dispose() {
     if (_initialized) {
       _driver.dispose();
@@ -89,6 +102,14 @@ class LinuxDriver {
   static const int EV_SYN = 0x00;
   static const int SYN_REPORT = 0x00;
 
+  static const int EV_ABS = 0x03;      // For absolute axis movement (analog sticks)
+
+  // Absolute Axis Mapping (Standard Linux Input Codes)
+  static const int ABS_X = 0x00;   // Left Stick X
+  static const int ABS_Y = 0x01;   // Left Stick Y
+  static const int ABS_RX = 0x03;  // Right Stick X (often mapped to 0x03 or 0x04 depending on standard)
+  static const int ABS_RY = 0x04;  // Right Stick Y
+
   // Key Map
   static Map<String, int> keyMap = {
     'CROSS' : 37,
@@ -127,10 +148,20 @@ class LinuxDriver {
 
     // Inform the kernel about virtual keyboard
     _ioctl(fd, 0x40045564, 0x01); // UI_SET_EVBIT -> EV_KEY
+    _ioctl(fd, 0x40045564, 0x03);
 
     // Register all keys in the keyMap
     for (var keyCode in keyMap.values) {
       _ioctl(fd, 0x40045565, keyCode); // UI_SET_KEYBIT
+    }
+
+    // Register absolute axis positions
+    final List<int> axes = [ABS_X, ABS_Y, ABS_RX, ABS_RY];
+    for (var axis in axes) {
+      _ioctl(fd, 0x40045566, axis); // UI_SET_ABSBIT
+      
+      // Configure axis min, max, flat, and fuzz parameters
+      _configureAxis(axis, -128, 127); // Standard 8-bit resolution joystick range
     }
 
     using((Arena arena) {
@@ -194,11 +225,51 @@ class LinuxDriver {
     _sendEvent(EV_SYN, SYN_REPORT, 0); // Flush sync stack framework instantly
   }
   
+  void updateLeftAnalog(double x, double y) {
+    // Convert -1.0 -> 1.0 down to integer ranges -128 -> 127
+    int rawX = (x * 127).round().clamp(-128, 127);
+    int rawY = (y * 127).round().clamp(-128, 127);
+
+    _sendEvent(EV_ABS, ABS_X, rawX);
+    _sendEvent(EV_ABS, ABS_Y, rawY);
+    _sendEvent(EV_SYN, SYN_REPORT, 0);
+  }
+
+  void updateRightAnalog(double x, double y) {
+    int rawX = (x * 127).round().clamp(-128, 127);
+    int rawY = (y * 127).round().clamp(-128, 127);
+
+    _sendEvent(EV_ABS, ABS_RX, rawX);
+    _sendEvent(EV_ABS, ABS_RY, rawY);
+    _sendEvent(EV_SYN, SYN_REPORT, 0); 
+  }
+
   void dispose() {
     debugPrint("Virtual keyboard disposed successfully");
     _ioctl(fd, 0x5502, 0); // UI_DEV_DESTROY: Tell kernel to remove the device
     _close(fd);            // Close the file handle
   }
+
+  void _configureAxis(int axis, int min, int max) {
+  // 0x401c5504 is UI_ABS_SETUP ioctl command
+  using((Arena arena) {
+    // Allocation size matching the struct size of uinput_abs_setup (28 bytes)
+    final Pointer<Uint8> absSetup = arena<Uint8>(28); 
+    
+    // Write axis code (16-bit) at offset 0
+    absSetup.cast<Uint16>()[0] = axis;
+    
+    // Write absinfo properties (struct tracking parameters starting at offset 4)
+    final Pointer<Int32> absInfo = (absSetup.cast<Uint8>() + 4).cast<Int32>();
+    absInfo[0] = 0;   // value
+    absInfo[1] = min; // minimum value (-128)
+    absInfo[2] = max; // maximum value (127)
+    absInfo[3] = 0;   // fuzz
+    absInfo[4] = 0;   // flat
+
+    _ioctl(fd, 0x401c5504, absSetup.address);
+  });
+}
 }
 
 

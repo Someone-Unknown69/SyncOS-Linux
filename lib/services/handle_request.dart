@@ -173,7 +173,13 @@ class HandleRequest {
     final action = data['action'];
     final args = data['args'];
     if(action != null) {
-      ControllerService().keyPress(action, args['button']);
+      if(action == 'right_analog') {
+        ControllerService().updateRightStick(args['x'], args['y']);
+      } else if(action == 'left_analog') {
+        ControllerService().updateLeftStick(args['x'], args['y']);
+      } else {
+        ControllerService().keyPress(action, args['button']);
+      }
     }
   }
 
