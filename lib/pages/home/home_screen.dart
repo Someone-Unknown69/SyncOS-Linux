@@ -8,7 +8,7 @@ import '../../core/globals.dart';
 import '../../models/dashboard_item.dart';
 import '../../theme/app_theme.dart';
 import 'widgets/connection_status.dart';
-import 'widgets/dashboard_grid.dart';
+import 'widgets/quick_actions.dart';
 import 'widgets/info_cards.dart';
 import 'widgets/music_player.dart';
 
@@ -70,8 +70,8 @@ class _HomeScreenState extends State<HomeScreen> {
       onTap: () => (),
     ),
     DashboardItem(
-      label: 'Send Clipboard',
-      icon: Icons.copy_all,
+      label: 'Ring Device',
+      icon: Icons.speaker_phone,
       onTap: () => (),
     ),
   ];
@@ -177,7 +177,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                                 onVolumeChanged: (val) {
                                                 },
                                               ),
-                                              const SizedBox(height: _spacing),
+                                              const SizedBox(height: _spacing * 2),
                                               DashboardGrid(items: _items),
                                             ]
                                           ) 
