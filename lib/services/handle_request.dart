@@ -100,7 +100,6 @@ class HandleRequest {
 
   void handle(String rawJson) {
     try {
-      debugPrint('Command recieved $rawJson');
       final data = jsonDecode(rawJson);
       final op = data['op'];
 
@@ -172,11 +171,15 @@ class HandleRequest {
   void _handleController(Map<String, dynamic> data) {
     final action = data['action'];
     final args = data['args'];
-    if(action != null) {
-      if(action == 'right_analog') {
-        ControllerService().updateRightStick(args['x'], args['y']);
-      } else if(action == 'left_analog') {
+    if (action != null) {
+      if (action == 'left_analog') {
         ControllerService().updateLeftStick(args['x'], args['y']);
+      } else if (action == 'right_analog') {
+        ControllerService().updateRightStick(args['x'], args['y']);
+      } else if (action == 'triggers') {
+        ControllerService().updateTriggers(args['l2'], args['r2']);
+      } else if (action == 'dpad') {
+        ControllerService().updateDpad(args['x'], args['y']);
       } else {
         ControllerService().keyPress(action, args['button']);
       }

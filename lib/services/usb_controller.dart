@@ -62,6 +62,16 @@ class ControllerService {
     _driver.updateRightAnalog(x, y);
   }
 
+  void updateTriggers(double l2, double r2) {
+    if (!_initialized) init();
+    _driver.updateTriggers(l2, r2);
+  }
+
+  void updateDpad(int x, int y) {
+    if (!_initialized) init();
+    _driver.updateDpad(x, y);
+  }
+
   void dispose() {
     if (_initialized) {
       _driver.dispose();
@@ -101,7 +111,6 @@ class LinuxDriver {
   static const int EV_KEY = 0x01;      // for keyboard
   static const int EV_SYN = 0x00;
   static const int SYN_REPORT = 0x00;
-
   static const int EV_ABS = 0x03;      // For absolute axis movement (analog sticks)
 
   // Absolute Axis Mapping (Standard Linux Input Codes)
@@ -109,23 +118,30 @@ class LinuxDriver {
   static const int ABS_Y = 0x01;   // Left Stick Y
   static const int ABS_RX = 0x03;  // Right Stick X (often mapped to 0x03 or 0x04 depending on standard)
   static const int ABS_RY = 0x04;  // Right Stick Y
+  static const int ABS_Z = 0x02;
+  static const int ABS_RZ = 0x05;
+  static const int ABS_HAT0X = 0x10;
+  static const int ABS_HAT0Y = 0x11;
 
   // Key Map
   static Map<String, int> keyMap = {
-    'CROSS' : 37,
-    'SQUARE' : 36,
-    'TRIANGLE' : 23,
-    'CIRCLE' : 38,
-    'UP' : 17,
-    'DOWN' : 31,
-    'LEFT' : 30,
-    'RIGHT' : 32,
-    'SELECT' : 14,
-    'START' : 28,
-    'L1' : 16,
-    'L2' : 2,
-    'R1' : 18,
-    'R2': 4,
+    'CROSS': 304,
+    'CIRCLE': 305,
+    'SQUARE': 307,
+    'TRIANGLE': 308,
+    'L1': 310,
+    'R1': 311,
+    'L2': 312,
+    'R2': 313,
+    'SELECT': 314,
+    'START': 315,
+    'MODE': 316,
+    'THUMBL': 317,
+    'THUMBR': 318,
+    'DPAD_UP': 544,
+    'DPAD_DOWN': 545,
+    'DPAD_LEFT': 546,
+    'DPAD_RIGHT': 547,
     // will add more keys
   };
 
@@ -147,8 +163,10 @@ class LinuxDriver {
     }
 
     // Inform the kernel about virtual keyboard
-    _ioctl(fd, 0x40045564, 0x01); // UI_SET_EVBIT -> EV_KEY
-    _ioctl(fd, 0x40045564, 0x03);
+    _ioctl(fd, 0x40045564, EV_KEY); // UI_SET_EVBIT -> EV_KEY
+    _ioctl(fd, 0x40045564, EV_ABS);
+
+    _ioctl(fd, 0x40045565, 304);
 
     // Register all keys in the keyMap
     for (var keyCode in keyMap.values) {
@@ -158,10 +176,20 @@ class LinuxDriver {
     // Register absolute axis positions
     final List<int> axes = [ABS_X, ABS_Y, ABS_RX, ABS_RY];
     for (var axis in axes) {
-      _ioctl(fd, 0x40045566, axis); // UI_SET_ABSBIT
-      
-      // Configure axis min, max, flat, and fuzz parameters
-      _configureAxis(axis, -128, 127); // Standard 8-bit resolution joystick range
+      _ioctl(fd, 0x40045566, axis);
+      _configureAxis(axis, -32768, 32767, 15, 128);
+    }
+
+    final List<int> triggers = [ABS_Z, ABS_RZ];
+    for (var axis in triggers) {
+      _ioctl(fd, 0x40045566, axis);
+      _configureAxis(axis, 0, 255, 0, 0);
+    }
+
+    final List<int> dpad = [ABS_HAT0X, ABS_HAT0Y];
+    for (var axis in dpad) {
+      _ioctl(fd, 0x40045566, axis);
+      _configureAxis(axis, -1, 1, 0, 0);
     }
 
     using((Arena arena) {
@@ -173,9 +201,11 @@ class LinuxDriver {
       }
 
       setup.ref.idBus = 0x03; // For USB
+      setup.ref.idVendor = 0x045E;
+      setup.ref.idProduct = 0x028E;
+      setup.ref.idVersion = 0x0110;
 
       final Pointer<Uint8> nameBuffer = setup.cast<Uint8>() + 8;
-
       // copy the name to destination
       for (int i = 0; i < nameStr.length && i < 79; i++) {
         nameBuffer[i] = nameStr[i];
@@ -227,8 +257,8 @@ class LinuxDriver {
   
   void updateLeftAnalog(double x, double y) {
     // Convert -1.0 -> 1.0 down to integer ranges -128 -> 127
-    int rawX = (x * 127).round().clamp(-128, 127);
-    int rawY = (y * 127).round().clamp(-128, 127);
+    int rawX = (x * 32767).round().clamp(-32768, 32767);
+    int rawY = (-y * 32767).round().clamp(-32768, 32767);
 
     _sendEvent(EV_ABS, ABS_X, rawX);
     _sendEvent(EV_ABS, ABS_Y, rawY);
@@ -236,12 +266,26 @@ class LinuxDriver {
   }
 
   void updateRightAnalog(double x, double y) {
-    int rawX = (x * 127).round().clamp(-128, 127);
-    int rawY = (y * 127).round().clamp(-128, 127);
+    int rawX = (x * 32767).round().clamp(-32768, 32767);
+    int rawY = (-y * 32767).round().clamp(-32768, 32767);
 
     _sendEvent(EV_ABS, ABS_RX, rawX);
     _sendEvent(EV_ABS, ABS_RY, rawY);
     _sendEvent(EV_SYN, SYN_REPORT, 0); 
+  }
+
+  void updateTriggers(double l2, double r2) {
+    int rawL2 = (l2 * 255).round().clamp(0, 255);
+    int rawR2 = (r2 * 255).round().clamp(0, 255);
+    _sendEvent(EV_ABS, ABS_Z, rawL2);
+    _sendEvent(EV_ABS, ABS_RZ, rawR2);
+    _sendEvent(EV_SYN, SYN_REPORT, 0);
+  }
+
+  void updateDpad(int x, int y) {
+    _sendEvent(EV_ABS, ABS_HAT0X, x.clamp(-1, 1));
+    _sendEvent(EV_ABS, ABS_HAT0Y, y.clamp(-1, 1));
+    _sendEvent(EV_SYN, SYN_REPORT, 0);
   }
 
   void dispose() {
@@ -250,26 +294,19 @@ class LinuxDriver {
     _close(fd);            // Close the file handle
   }
 
-  void _configureAxis(int axis, int min, int max) {
-  // 0x401c5504 is UI_ABS_SETUP ioctl command
-  using((Arena arena) {
-    // Allocation size matching the struct size of uinput_abs_setup (28 bytes)
-    final Pointer<Uint8> absSetup = arena<Uint8>(28); 
-    
-    // Write axis code (16-bit) at offset 0
-    absSetup.cast<Uint16>()[0] = axis;
-    
-    // Write absinfo properties (struct tracking parameters starting at offset 4)
-    final Pointer<Int32> absInfo = (absSetup.cast<Uint8>() + 4).cast<Int32>();
-    absInfo[0] = 0;   // value
-    absInfo[1] = min; // minimum value (-128)
-    absInfo[2] = max; // maximum value (127)
-    absInfo[3] = 0;   // fuzz
-    absInfo[4] = 0;   // flat
-
-    _ioctl(fd, 0x401c5504, absSetup.address);
-  });
-}
+  void _configureAxis(int axis, int min, int max, int fuzz, int flat) {
+    using((Arena arena) {
+      final Pointer<Uint8> absSetup = arena<Uint8>(28); 
+      absSetup.cast<Uint16>()[0] = axis;
+      final Pointer<Int32> absInfo = (absSetup.cast<Uint8>() + 4).cast<Int32>();
+      absInfo[0] = 0;
+      absInfo[1] = min;
+      absInfo[2] = max;
+      absInfo[3] = fuzz;
+      absInfo[4] = flat;
+      _ioctl(fd, 0x401c5504, absSetup.address);
+    });
+  }
 }
 
 
