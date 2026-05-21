@@ -6,18 +6,54 @@ import 'socket_server.dart';
 import '../core/globals.dart';
 import 'package:path_provider/path_provider.dart';
 
-
 // ------------------------------        FTP Implementation Class       -----------------------------------
 
 class FileTransfer {
   static const int _ephemeralPort = 0;
 
-  Future<void> sendFile(String filePath, {void Function(double)? onProgress}) async {
-    final file = File(filePath);
-    if(!await file.exists()) return;
+  Future<void> transferFile() async {
+    final String? filePath = await pickFile();
 
+    if(filePath == null) {
+      debugPrint("[FTP] User cancelled file selection");
+      return;
+    }
+
+    final file = File(filePath);
     final fileName = file.path.split(Platform.pathSeparator).last;
     final fileSize = await file.length();
+
+    final progress = ValueNotifier<double>(0.0);
+      
+    final task = sendFile(
+      filePath,
+      fileName,
+      fileSize,
+      onProgress: (p) => progress.value = p,
+    );
+
+    TransferSnackbar.show(
+      label: "Sending File",
+      fileName: fileName,
+      fileSize: fileSize,
+      progressNotifier: progress,
+      task: task,
+      onCancel: () {
+        debugPrint("[FTP] File : $fileName Transfer Cancelled");
+      }
+    );
+
+  }
+
+  Future<void> sendFile (
+    String filePath, 
+    String fileName,
+    int fileSize,
+    {void Function(double)? onProgress}
+  ) async {
+    
+    final file = File(filePath);
+    if(!await file.exists()) return;
 
     // calculate checksum of file
     debugPrint('[FTP] Calculating checksum for $fileName');
@@ -146,8 +182,6 @@ class FileTransfer {
 }
 
 
-
-
 // ----------------------------       Progress Snackbar     ---------------------------------------
 
 class TransferSnackbar {
@@ -218,13 +252,13 @@ class TransferSnackbar {
                   ),
                   const SizedBox(height: 16),
                   
-                  // Main Content: File Name (Highly Visible)
+                  // File Name
                   Text(
                     fileName,
                     overflow: TextOverflow.ellipsis,
-                    maxLines: 2, // Allow two lines for visibility
+                    maxLines: 2, 
                     style: TextStyle(
-                      color: theme.colorScheme.onSurface, // Maximum contrast
+                      color: theme.colorScheme.onSurface, 
                       fontWeight: FontWeight.bold,
                       fontSize: 15,
                     ),
@@ -238,7 +272,6 @@ class TransferSnackbar {
                   
                   const SizedBox(height: 16),
 
-                  // Linear Progress Section
                   ClipRRect(
                     borderRadius: BorderRadius.circular(8),
                     child: LinearProgressIndicator(

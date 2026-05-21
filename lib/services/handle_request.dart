@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'music.dart';
 import 'usb_controller.dart';
 import 'file_transfer.dart';
+import 'notifications_service.dart';
 
 // Metadata class
 class MediaMetadata {
@@ -73,7 +74,8 @@ class HandleRequest {
       "music": _handleMusic,
       "controller" : _handleController,
       "file_transfer": _handleFTP,
-      'device_info': _handleDeviceInfo
+      'device_info': _handleDeviceInfo,
+      'notification': _handleNotification
     };
   }
 
@@ -194,10 +196,33 @@ class HandleRequest {
       // file requested from other device
       // will add later
     } else if (action == 'recieve') {
-      debugPrint('$args');
+      debugPrint('[Handle FTP]$args');
       FileTransfer().recieveFile(args);
     } else {
-      debugPrint('[Handler FTP] Invalid action');
+      debugPrint('[Handle FTP] Invalid action');
+    }
+  }
+  
+  void _handleNotification(Map<String, dynamic> data) {
+    final action = data['action'];
+    final args = data['args'];
+
+    if(action == 'receive') {
+      DateTime timestamp = DateTime.now();
+      if (args['timestamp'] != null) {
+        try {
+          timestamp = DateTime.parse(args['timestamp'].toString());
+        } catch (_) {}
+      }
+
+      NotificationService().addNotification(
+        args['app'] ?? 'Unknown',
+        args['body'] ?? 'No content',
+        timestamp,
+        args['color'] ?? 0xFF2196F3
+      );
+    } else {
+      debugPrint('[Handle Notifications] Invalid action');
     }
   }
 

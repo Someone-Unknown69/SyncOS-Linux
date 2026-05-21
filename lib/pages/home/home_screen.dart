@@ -11,6 +11,9 @@ import 'widgets/connection_status.dart';
 import 'widgets/quick_actions.dart';
 import 'widgets/info_cards.dart';
 import 'widgets/music_player.dart';
+import 'widgets/sidebar.dart';
+import 'widgets/clipboard.dart';
+import 'widgets/notifications.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -22,6 +25,8 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
 
   final int _port = 9999;
+
+  // All services used
   late final PairingService _pairingService;
   late final SocketServer client;
 
@@ -34,34 +39,7 @@ class _HomeScreenState extends State<HomeScreen> {
       icon: Icons.file_copy,
       onTap: () async {
         final transfer = FileTransfer();
-        final String? filePath = await transfer.pickFile();
-
-        if(filePath == null) {
-          debugPrint("[FTP] User cancelled file selection");
-          return;
-        }
-
-        final file = File(filePath);
-        final fileName = file.path.split(Platform.pathSeparator).last;
-        final fileSize = await file.length();
-
-        final progress = ValueNotifier<double>(0.0);
-          
-        final task = transfer.sendFile(
-          filePath,
-          onProgress: (p) => progress.value = p,
-        );
-
-        TransferSnackbar.show(
-          label: "Sending File",
-          fileName: fileName,
-          fileSize: fileSize,
-          progressNotifier: progress,
-          task: task,
-          onCancel: () {
-            debugPrint("[FTP] File : $fileName Transfer Cancelled");
-          }
-        );
+        await transfer.transferFile();
       },
     ),
     DashboardItem(
@@ -78,7 +56,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   String _localIP = 'Loading...';
   bool _isInitializing = true;
-  bool _isExpanded = true;
 
   @override
   void initState() {
@@ -139,14 +116,11 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildSidebar(),
+              Sidebar(),
               Expanded(
-                child: SingleChildScrollView(
-                  keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  child: Padding(
-                    padding: const EdgeInsets.all(_padding),
-                    child: ValueListenableBuilder<bool>(
+                child: Padding(
+                  padding: const EdgeInsets.all(_padding),
+                  child: ValueListenableBuilder<bool>(
                       valueListenable: client.connectionStatus,
                       builder: (context, isConnected, child) {
                         return Column(
@@ -159,58 +133,116 @@ class _HomeScreenState extends State<HomeScreen> {
                                 deviceName: processor.deviceName,
                               ),
                               const SizedBox(height: _spacing),
-                              ValueListenableBuilder<int>(
-                                valueListenable: client.connectedClients,
-                                builder: (context, clientCount, child) {
-                                  if (clientCount > 0) {
-                                    return Row(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Expanded(
-                                          child: Column(
+                              Expanded(
+                                child: ValueListenableBuilder<int>(
+                                  valueListenable: client.connectedClients,
+                                  builder: (context, clientCount, child) {
+                                    if (clientCount > 0) {
+                                      return LayoutBuilder(
+                                        builder: (context, constraints) {
+
+                                          final bool isSmallScreen = constraints.maxWidth <= 1000;
+
+                                          return Row(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
                                             children: [
-                                              infoCardsRow(
-                                                batteryLevelNotifier: processor.batteryLevel,
-                                                isChargingNotifier: processor.isCharging,
-                                                volumeNotifier: processor.volume, 
-                                                context: context,
-                                                onVolumeChanged: (val) {
-                                                },
+                                              Expanded(
+                                                flex: isSmallScreen ? 3 : 1,
+                                                child: Column(
+                                                  children: [
+                                                    // battery and volume cards
+                                                    infoCardsRow(
+                                                      batteryLevelNotifier: processor.batteryLevel,
+                                                      isChargingNotifier: processor.isCharging,
+                                                      volumeNotifier: processor.volume, 
+                                                      context: context,
+                                                      onVolumeChanged: (val) {
+                                                      },
+                                                    ),
+                                                    const SizedBox(height: _spacing),
+                                          
+                                                    // Quick actions
+                                                    DashboardGrid(items: _items),
+                                                    const SizedBox(height: _spacing),
+                                          
+                                                    // Clipboard history
+                                                    Expanded(child: Clipboard()),
+                                          
+                                                  ]
+                                                ) 
                                               ),
-                                              const SizedBox(height: _spacing * 2),
-                                              DashboardGrid(items: _items),
-                                            ]
-                                          ) 
-                                        ),
-                                        const SizedBox(width: _spacing),
-                                        SizedBox(
-                                          width: 400,
-                                          child: ValueListenableBuilder<MediaMetadata>(
-                                            valueListenable: processor.metadata, 
-                                            builder: (context, info, child) {
-                                              return MusicPlayerWidget(
-                                                imagePath: info.albumArt, 
-                                                trackName: info.title, 
-                                                artistName: info.artist, 
-                                                position: info.position, 
-                                                duration: info.duration, 
-                                                status: info.status, 
-                                                albumArtBase64: info.albumArt,
-                                                client: client,
-                                              );
-                                            }
-                                          )
-                                        )
-                                      ],
-                                    );
-                                  } else {
-                                    return QrCodeCard(
-                                      localIP: _localIP,
-                                      port: _port,
-                                      pairingService: _pairingService,
-                                    );
-                                  }
-                                },
+                                          
+                                              const SizedBox(width: _spacing),
+                                          
+                                              isSmallScreen ? 
+
+                                              Expanded(
+                                                flex: 2, // Shrinks proportionally with the left column when window space is tight
+                                                child: Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                                  children: [
+                                                    ValueListenableBuilder<MediaMetadata>(
+                                                      valueListenable: processor.metadata, 
+                                                      builder: (context, info, child) {
+                                                        return MusicPlayerWidget(
+                                                          imagePath: info.albumArt, 
+                                                          trackName: info.title, 
+                                                          artistName: info.artist, 
+                                                          position: info.position, 
+                                                          duration: info.duration, 
+                                                          status: info.status, 
+                                                          albumArtBase64: info.albumArt,
+                                                          client: client,
+                                                        );
+                                                      }
+                                                    ),
+                                                    const SizedBox(height: _spacing),
+                                                    const Expanded(child: Notifications()),
+                                                  ],
+                                                ),
+                                              ) 
+                                              
+                                              :
+                                              
+                                              SizedBox(
+                                                width: 400,
+                                                child: Column(
+                                                  children: [
+                                                    ValueListenableBuilder<MediaMetadata>(
+                                                      valueListenable: processor.metadata, 
+                                                      builder: (context, info, child) {
+                                                        return MusicPlayerWidget(
+                                                          imagePath: info.albumArt, 
+                                                          trackName: info.title, 
+                                                          artistName: info.artist, 
+                                                          position: info.position, 
+                                                          duration: info.duration, 
+                                                          status: info.status, 
+                                                          albumArtBase64: info.albumArt,
+                                                          client: client,
+                                                        );
+                                                      }
+                                                    ),
+                                                
+                                                    const SizedBox(height: _spacing),
+                                                
+                                                    Expanded(child: Notifications())
+                                                  ],
+                                                ),
+                                              )
+                                            ],
+                                          );
+                                        }
+                                      );
+                                    } else {
+                                      return QrCodeCard(
+                                        localIP: _localIP,
+                                        port: _port,
+                                        pairingService: _pairingService,
+                                      );
+                                    }
+                                  },
+                                ),
                               ),
                             ] else  
                               StatusNotConnected(
@@ -224,7 +256,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                 ),
-              ),
             ],
           ),
         ),
@@ -232,130 +263,4 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildSidebar() {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOutCubic,
-      width: _isExpanded ? 260 : 80,
-      color: colorScheme.surfaceContainerLow,
-      child: Column(
-        children: [
-          const SizedBox(height: 30),
-          
-          // --- HEADER SECTION ---
-          SizedBox(
-            height: 48,
-            child: Stack(
-              children: [
-                AnimatedOpacity(
-                  duration: const Duration(milliseconds: 200),
-                  opacity: _isExpanded ? 1.0 : 0.0,
-                  child: const Center(
-                    child: Text(
-                      "SyncOS",
-                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ),
-
-                AnimatedPositioned(
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeInOutCubic,
-                  right: _isExpanded ? 8 : 16, 
-                  top: 0,
-                  bottom: 0,
-                  child: Center(
-                    child: IconButton(
-                      icon: AnimatedSwitcher( 
-                        duration: const Duration(milliseconds: 300),
-                        child: Icon(
-                          _isExpanded ? Icons.menu_open : Icons.menu,
-                          key: ValueKey(_isExpanded),
-                        ),
-                      ),
-                      onPressed: () => setState(() => _isExpanded = !_isExpanded),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 30),
-          
-          // --- NAVIGATION ITEMS ---
-          _sidebarTile(Icons.dashboard, "Dashboard", true),
-          _sidebarTile(Icons.folder_shared, "Files", false),
-          _sidebarTile(Icons.terminal, "Configure Commands", false),
-          _sidebarTile(Icons.notifications, "Notifications", false),
-          _sidebarTile(Icons.settings, "Settings", false),
-          
-          const Spacer(), 
-          
-          // --- PC STATUS CARD ---
-          AnimatedOpacity(
-            duration: const Duration(milliseconds: 200),
-            opacity: _isExpanded ? 1.0 : 0.0,
-            child: ClipRect(
-              child: AnimatedAlign(
-                duration: const Duration(milliseconds: 300),
-                alignment: Alignment.center,
-                heightFactor: _isExpanded ? 1.0 : 0.0,
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-        ],
-      ),
-    );
-  }
-
-  Widget _sidebarTile(IconData icon, String title, bool selected) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      child: InkWell(
-        onTap: () {},
-        borderRadius: BorderRadius.circular(28),
-        child: Container(
-          height: 56, 
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            color: selected ? colorScheme.secondaryContainer : Colors.transparent,
-            borderRadius: BorderRadius.circular(28),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                icon,
-                size: 24,
-                color: selected ? colorScheme.onSecondaryContainer : colorScheme.onSurfaceVariant,
-              ),
-              Expanded(
-                child: AnimatedOpacity(
-                  duration: const Duration(milliseconds: 200),
-                  opacity: _isExpanded ? 1.0 : 0.0,
-                  child: Padding(
-                    padding: const EdgeInsets.only(left: 12),
-                    child: Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.clip,
-                      style: TextStyle(
-                        fontWeight: selected ? FontWeight.bold : FontWeight.w500,
-                        color: selected ? colorScheme.onSecondaryContainer : colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 }

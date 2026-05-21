@@ -11,10 +11,10 @@ class AppTheme {
   // Layout
   static const double borderRadius = 20;
   static const double padding = 16;
-  static const double spacing = 12;
+  static const double spacing = 16;
 
   // Music Player Specific
-  static const double musicPlayerRadius = 28;
+  static const double musicPlayerRadius = 20;
 }
 
 // Theme config

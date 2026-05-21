@@ -4,9 +4,44 @@ import '../../../theme/app_theme.dart';
 
 class DashboardGrid extends StatelessWidget {
   final List<DashboardItem> items;
+  
   final double borderRadius = AppTheme.borderRadius;
   final double spacing = AppTheme.spacing;
   final double padding = AppTheme.padding;
+
+  // --- DESIGN CONSTANTS ---
+  
+  // Layout Breakpoints & Grid Extents
+  static const double compactBreakpoint = 550.0;
+  static const int gridCrossAxisCount = 3;
+  static const double gridMainAxisExtent = 230.0;
+  
+  // Typography Sizes
+  static const double titleFontSize = 20.0;
+  static const double gridLabelFontSize = 18.0;
+  static const double gridSubLabelFontSize = 13.0;
+  static const double listLabelFontSize = 16.0;
+  static const double listSubLabelFontSize = 12.0;
+  
+  // Icon and Inner Widget Sizes
+  static const double gridMainIconSize = 26.0;
+  static const double listMainIconSize = 22.0;
+  static const double actionArrowIconSizeGrid = 18.0;
+  static const double actionArrowIconSizeList = 16.0;
+  
+  static const double iconContainerPadding = 10.0;
+  static const double actionArrowPadding = 8.0;
+  static const double listTextSpacing = 14.0;
+  static const double subLabelTopMargin = 2.0;
+  static const double gridSubLabelTopMargin = 4.0;
+  
+  // Color Alphas
+  static const double primaryBgAlpha = 0.08;
+  static const double hoverStateAlpha = 0.04;
+  static const double splashStateAlpha = 0.08;
+  static const double subLabelTextAlpha = 0.6;
+
+
 
   const DashboardGrid({super.key, required this.items});
 
@@ -18,8 +53,7 @@ class DashboardGrid extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final double width = constraints.maxWidth;
-        
-        final bool isListMode = width < 550; 
+        final bool isListMode = width < compactBreakpoint; 
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -29,14 +63,13 @@ class DashboardGrid extends StatelessWidget {
               child: Text(
                 "Quick Actions",
                 style: TextStyle(
-                  fontSize: 20,
+                  fontSize: titleFontSize,
                   fontWeight: FontWeight.bold,
                   color: colorScheme.onSurface,
                 ),
               ),
             ),
             
-            // Content Layout Switcher
             isListMode
                 ? ListView.separated(
                     shrinkWrap: true,
@@ -54,8 +87,8 @@ class DashboardGrid extends StatelessWidget {
                     physics: const NeverScrollableScrollPhysics(),
                     itemCount: items.length,
                     gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 3,
-                      mainAxisExtent: 210,
+                      crossAxisCount: gridCrossAxisCount,
+                      mainAxisExtent: gridMainAxisExtent,
                       crossAxisSpacing: spacing,
                       mainAxisSpacing: spacing,
                     ),
@@ -83,20 +116,22 @@ class DashboardGrid extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: item.onTap,
+        hoverColor: colorScheme.onSurface.withValues(alpha: hoverStateAlpha),
+        splashColor: colorScheme.onSurface.withValues(alpha: splashStateAlpha),
         child: Padding(
           padding: EdgeInsets.all(padding),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                padding: const EdgeInsets.all(10.0),
+                padding: const EdgeInsets.all(iconContainerPadding),
                 decoration: BoxDecoration(
-                  color: colorScheme.primary.withValues(alpha: .08),
+                  color: colorScheme.primary.withValues(alpha: primaryBgAlpha),
                   borderRadius: BorderRadius.circular(borderRadius * 0.7),
                 ),
                 child: Icon(
                   item.icon, 
-                  size: 26, 
+                  size: gridMainIconSize, 
                   color: colorScheme.primary,
                 ),
               ),
@@ -106,33 +141,33 @@ class DashboardGrid extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 18,
+                  fontSize: gridLabelFontSize,
                   fontWeight: FontWeight.bold,
                   color: colorScheme.onSurfaceVariant,
                 ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: gridSubLabelTopMargin),
               Text(
                 "Tap to execute action",
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 13,
-                  color: colorScheme.onSurfaceVariant.withValues(alpha: .6),
+                  fontSize: gridSubLabelFontSize,
+                  color: colorScheme.onSurfaceVariant.withValues(alpha: subLabelTextAlpha),
                 ),
               ),
               const Spacer(),
               Align(
                 alignment: Alignment.bottomRight,
                 child: Container(
-                  padding: const EdgeInsets.all(8.0),
+                  padding: const EdgeInsets.all(actionArrowPadding),
                   decoration: BoxDecoration(
                     color: colorScheme.surfaceContainerHigh,
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
                     Icons.arrow_forward_rounded, 
-                    size: 18, 
+                    size: actionArrowIconSizeGrid, 
                     color: colorScheme.primary,
                   ),
                 ),
@@ -163,18 +198,18 @@ class DashboardGrid extends StatelessWidget {
           child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(10.0),
+                padding: const EdgeInsets.all(iconContainerPadding),
                 decoration: BoxDecoration(
-                  color: colorScheme.primary.withValues(alpha: 0.08),
+                  color: colorScheme.primary.withValues(alpha: primaryBgAlpha),
                   borderRadius: BorderRadius.circular(borderRadius * 0.7),
                 ),
                 child: Icon(
                   item.icon, 
-                  size: 22, 
+                  size: listMainIconSize, 
                   color: colorScheme.primary,
                 ),
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: listTextSpacing),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -185,36 +220,36 @@ class DashboardGrid extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: listLabelFontSize,
                         fontWeight: FontWeight.bold,
                         color: colorScheme.onSurfaceVariant,
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: subLabelTopMargin),
                     Text(
                       "Tap to execute action",
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 12,
-                        color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                        fontSize: listSubLabelFontSize,
+                        color: colorScheme.onSurfaceVariant.withValues(alpha: subLabelTextAlpha),
                       ),
                     ),
                   ],
                 ),
               ),
               Container(
-                padding: const EdgeInsets.all(8.0),
+                padding: const EdgeInsets.all(actionArrowPadding),
                 decoration: BoxDecoration(
                   color: colorScheme.surfaceContainerHigh,
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
                   Icons.arrow_forward_rounded, 
-                  size: 16, 
+                  size: actionArrowIconSizeList, 
                   color: colorScheme.primary,
+                  ),
                 ),
-              ),
             ],
           ),
         ),
