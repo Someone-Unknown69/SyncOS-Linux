@@ -3,10 +3,11 @@ import 'dart:io';
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
-import 'music.dart';
 import 'device_info.dart';
 import 'pairing_service.dart';
 import 'handle_request.dart';
+import 'Music/music_sending.dart';
+import 'Music/mpris_service.dart';
 
 // --------------------------------    Socket Class      -------------------------------------------------
  
@@ -21,9 +22,10 @@ class SocketServer extends ChangeNotifier{
   final BytesBuilder _buffer = BytesBuilder();
 
   // --------------------------------     Services       ----------------------------------------
+  final PairingService _pairingService;
   final MediaPoller _mediaPoller = MediaPoller();
   final BatteryMonitorServiceLinux _batteryMonitorServiceLinux = BatteryMonitorServiceLinux();
-  final PairingService _pairingService;
+  final MprisService _mprisService = MprisService.instance;
   final requestHandler = HandleRequest();
 
   // -------------------------------      Instance       --------------------------------------
@@ -141,7 +143,7 @@ class SocketServer extends ChangeNotifier{
     requestHandler.setMediaPoller(_mediaPoller);
     _mediaPoller.start(send);
     _batteryMonitorServiceLinux.start(); 
-
+    _mprisService.init();
 
     notifyListeners();
   }

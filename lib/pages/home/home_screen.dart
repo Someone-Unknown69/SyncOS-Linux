@@ -3,9 +3,9 @@ import 'dart:io';
 import '../../services/socket_server.dart';
 import '../../services/pairing_service.dart';
 import '../../services/file_transfer.dart';
-import '../../services/handle_request.dart';
 import '../../core/globals.dart';
 import '../../models/dashboard_item.dart';
+import '../../models/media_metadata.dart';
 import '../../theme/app_theme.dart';
 import 'widgets/connection_status.dart';
 import 'widgets/quick_actions.dart';
@@ -14,6 +14,7 @@ import 'widgets/music_player.dart';
 import 'widgets/sidebar.dart';
 import 'widgets/clipboard.dart';
 import 'widgets/notifications.dart';
+import '../../services/Music/mpris_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -50,7 +51,24 @@ class _HomeScreenState extends State<HomeScreen> {
     DashboardItem(
       label: 'Ring Device',
       icon: Icons.speaker_phone,
-      onTap: () => (),
+      onTap: () async {
+        final svc = MprisService.instance;
+        
+        svc.updateMetadata(
+          MediaMetadata(
+            title: "Test Track - Debug",
+            artist: "SyncOS Developer",
+            album: "Debugging Album",
+            status: "Playing",
+            position: 30,  // 30 seconds (updateMetadata converts to µs internally)
+            duration: 200, // 200 seconds
+            albumArt: "",
+            volume: 0.8,
+          ),
+        );
+        
+        debugPrint("[Debug] Metadata update signal sent to D-Bus");
+      },
     ),
   ];
 

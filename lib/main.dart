@@ -3,7 +3,8 @@ import 'core/globals.dart';
 import 'theme/app_theme.dart';
 import 'pages/home/home_screen.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const RemoteControllerApp());
 }
 

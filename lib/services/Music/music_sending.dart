@@ -107,15 +107,28 @@ class MediaPoller {
   final Map<String, String> _lastArtUrlPerPlayer = {};
 
   String? _activePlayerName;
+  
+  // We will exclude our defined mpris service so that the app shall not display it's own music service
+  // this will guarentee a healthy relationship between our mobile side and laptop side music service
+  //
+  // what is a healthy relationship?
+  // I don't know son... we are fumblers
+  static const String myServiceName = 'org.mpris.MediaPlayer2.SyncOSPlayer';
 
   Future<void> start(void Function(String op, String action, Map<String, dynamic> args) onSend) async {
-    if (_client != null) return; // Already running
     
+    if (_client != null) return; // Already running
     _client = DBusClient.session();
     
     try {
       final names = await _client!.listNames();
-      for (final name in names.where((n) => n.startsWith('org.mpris.MediaPlayer2.'))) {
+
+      // Filter out our own service here
+      final mprisPlayers = names.where((n) => 
+        n.startsWith('org.mpris.MediaPlayer2.') && n != myServiceName
+      );
+
+      for (final name in mprisPlayers) {
         _monitorPlayer(name, onSend);
       }
 
@@ -130,7 +143,7 @@ class MediaPoller {
         final serviceName = (signal.values[0] as DBusString).value;
         final newOwner   = (signal.values[2] as DBusString).value;
 
-        if (!serviceName.startsWith('org.mpris.MediaPlayer2.')) return;
+        if (!serviceName.startsWith('org.mpris.MediaPlayer2.') || serviceName == myServiceName) return;
 
         if (newOwner.isNotEmpty) {
           // A new MPRIS player just appeared
@@ -168,9 +181,11 @@ class MediaPoller {
     _players[name] = object;
 
     // Listen for D-Bus property changes
-    final sub = DBusSignalStream(_client!, sender: name, interface: 'org.freedesktop.DBus.Properties', 
-                     name: 'PropertiesChanged', path: DBusObjectPath('/org/mpris/MediaPlayer2'))
-      .listen((signal) => _updateMetadata(name, onSend, signal: signal));
+    final sub = DBusSignalStream(_client!, 
+                    sender: name, 
+                    interface: 'org.freedesktop.DBus.Properties', 
+                    name: 'PropertiesChanged', path: DBusObjectPath('/org/mpris/MediaPlayer2'))
+                    .listen((signal) => _updateMetadata(name, onSend, signal: signal));
       
     _subscriptions.add(sub);
     
@@ -223,8 +238,8 @@ class MediaPoller {
 
       if (_activePlayerName == name && statusStr != 'Playing') {
         // The currently active player paused/stopped. Look for another playing player.
-        // We don't clear _activePlayerName immediately ,we let it stay so controls
-        // still work until another player takes over. But we do stop pushing its
+        // I don't want to clear _activePlayerName immediately ,I let it stay so controls
+        // stilll work until another player takes over. But i do stop pushing its
         // stale state as "the" update.
       }
 
