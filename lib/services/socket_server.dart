@@ -18,6 +18,7 @@ class SocketServer extends ChangeNotifier{
   final _messageController = StreamController<Map<String, dynamic>>.broadcast();
   Socket? _client;
   Socket? _pendingSocket;
+  bool _isDisconnecting = false;
   
   final BytesBuilder _buffer = BytesBuilder();
 
@@ -25,8 +26,8 @@ class SocketServer extends ChangeNotifier{
   final PairingService _pairingService;
   final MediaPoller _mediaPoller = MediaPoller();
   final BatteryMonitorServiceLinux _batteryMonitorServiceLinux = BatteryMonitorServiceLinux();
-  final MprisService _mprisService = MprisService.instance;
   final requestHandler = HandleRequest();
+  final MprisService _mprisService = MprisService.instance;
 
   // -------------------------------      Instance       --------------------------------------
   static SocketServer? _instance;
@@ -140,10 +141,8 @@ class SocketServer extends ChangeNotifier{
       debugPrint('[Pairing] Handshake failed: $e');
     }
 
-    requestHandler.setMediaPoller(_mediaPoller);
-    _mediaPoller.start(send);
-    _batteryMonitorServiceLinux.start(); 
-    _mprisService.init();
+    // start all the services
+    await _startServices();
 
     notifyListeners();
   }
@@ -166,24 +165,56 @@ class SocketServer extends ChangeNotifier{
   }
 
   // Method to stop the server
-  void stopServer() {
-    _handleDisconnect();
+  Future<void> stopServer() async{
+    await _handleDisconnect();
     _server?.close();
     connectionStatus.value = false;
   }
 
   // Kill the server and close
-  void _handleDisconnect() {
-    _mediaPoller.dispose();
-    _batteryMonitorServiceLinux.dispose();
+  Future<void> _handleDisconnect() async {
+    // apparently the client.destory() also calls this, so i have to add a variable barrier
+    if (_isDisconnecting) return; // Ignore if we are already closing
+    _isDisconnecting = true;
 
-    _client?.destroy();
-    _client = null;
-    _buffer.clear();
-    connectedClients.value = 0;
-    notifyListeners();
+    try {
+      await _stopServices();
+      _client?.destroy();
+      _client = null;
+      _buffer.clear();
+      connectedClients.value = 0;
+      notifyListeners();
+    } finally {
+      _isDisconnecting = false; 
+    }
   }
 
+
+  // --------------------------    Initializing all services    -------------------------------------
+  Future<void> _startServices() async {
+    try {
+      requestHandler.setMediaPoller(_mediaPoller);
+      _mediaPoller.start(send);
+      _batteryMonitorServiceLinux.start(); 
+      debugPrint('[Socket] Services started successfully');
+    } catch (e) {
+      debugPrint('[Socket] Error in starting servies : $e');
+    }
+  }
+
+  Future<void> _stopServices() async {
+    try {
+      _mediaPoller.dispose();
+      _batteryMonitorServiceLinux.dispose();
+      _mprisService.reset();
+
+      debugPrint('[Socket] Services stopped successfully');
+    } catch (e) {
+      debugPrint('[Socket] Error in stopping servies : $e');
+    }
+  }
+
+  // ----------------------------    handling + sending commands    -------------------------------
 
   // Method to handle incoming commands from clients
   void _handleCommand(String command, Socket socket) {

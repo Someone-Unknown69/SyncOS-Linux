@@ -184,7 +184,7 @@ class StatusConnected extends StatelessWidget {
 
                   // disconnect button
                   FilledButton.icon(
-                    onPressed: () => client.stopServer(),
+                    onPressed: () async {await client.stopServer();},
                     icon: const Icon(Icons.power_off),
                     label: const Text("Disconnect"),
                     style: FilledButton.styleFrom(

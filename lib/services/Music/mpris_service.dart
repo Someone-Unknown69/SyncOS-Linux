@@ -1,16 +1,24 @@
+import 'dart:io';
+import 'dart:convert';
 import 'package:dbus/dbus.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../../models/media_metadata.dart';
+import '../../models/music_controls.dart';
 
 class MprisService extends DBusObject{
   MprisService._internal() : super(DBusObjectPath('/org/mpris/MediaPlayer2'));
   static final MprisService instance = MprisService._internal();
-
+  late final MusicControls _musicControls = MusicControls();
 
   final String serviceName = 'org.mpris.MediaPlayer2.SyncOSPlayer';
   late DBusClient _client;
   MediaMetadata _currentMetadata = MediaMetadata.initial();
+
+  // cache and pooling for time
+  String? _lastArtPath;
+  DateTime? _playbackStartedAt;
+  double _basePositionSeconds = 0.0;
 
   Future<void> init() async {
     _client = DBusClient.session();
@@ -41,19 +49,40 @@ class MprisService extends DBusObject{
 
     if (methodCall.interface == 'org.mpris.MediaPlayer2.Player') {
     switch (methodCall.name) {
-      case 'Play':
-        debugPrint("[MPRIS] Action: Play");
-        // call the logic
-        return DBusMethodSuccessResponse([]);
-        
-      case 'Pause':
-        debugPrint("[MPRIS] Action: Pause");
-        // call tha logic
-        return DBusMethodSuccessResponse([]);
-        
-      case 'PlayPause':
-        debugPrint("[MPRIS] Action: PlayPause toggle");
-        return DBusMethodSuccessResponse([]);
+        case 'Play':
+          _musicControls.playpause();
+          return DBusMethodSuccessResponse([]);
+
+        case 'Pause':
+          _musicControls.playpause();
+          return DBusMethodSuccessResponse([]);
+
+        case 'PlayPause':
+          _musicControls.playpause();
+          return DBusMethodSuccessResponse([]);
+
+        case 'Next':
+          _musicControls.next();
+          return DBusMethodSuccessResponse([]);
+
+        case 'Previous':
+          _musicControls.previous();
+          return DBusMethodSuccessResponse([]);
+
+        case 'Seek':
+          final int offsetUs = methodCall.values[0].asInt64();
+          final double currentPosSec = getCalculatedPositionSeconds();
+          final int targetPosSec = (currentPosSec + (offsetUs / 1000000)).toInt();
+          
+          _musicControls.seek(targetPosSec);
+          return DBusMethodSuccessResponse([]);
+
+        case 'SetPosition':
+          final int positionUs = methodCall.values[1].asInt64();
+          final int targetSeconds = (positionUs / 1000000).toInt();
+          
+          _musicControls.seek(targetSeconds);
+          return DBusMethodSuccessResponse([]);
       }
     }
 
@@ -62,44 +91,37 @@ class MprisService extends DBusObject{
 
   @override
   Future<DBusMethodResponse> getProperty(String interface, String name) async {
-    
-    /// properties for the main MediaPlayer2 interface
     if (interface == 'org.mpris.MediaPlayer2') {
       switch (name) {
-        case 'Identity':
-          return DBusGetPropertyResponse(DBusString('Sync OS Media Player'));
-        case 'CanQuit':
-          return DBusGetPropertyResponse(DBusBoolean(true));
-        case 'DesktopEntry':
-          return DBusGetPropertyResponse(DBusString('syncos-media-player'));
+        case 'Identity': return DBusGetPropertyResponse(DBusString('Sync OS Media Player'));
+        case 'CanQuit': return DBusGetPropertyResponse(DBusBoolean(true));
+        case 'DesktopEntry': return DBusGetPropertyResponse(DBusString('syncos-media-player'));
       }
     }
 
-    /// properties for the Player interface (Where music data lives)
     if (interface == 'org.mpris.MediaPlayer2.Player') {
       switch (name) {
         case 'Position':
-          if (_currentMetadata.title == "Unknown") {
-            // Return 0 instead of throwing an error if the track is not loaded
-            return DBusGetPropertyResponse(DBusInt64(0));
-          }
-          return DBusGetPropertyResponse(DBusInt64(_currentMetadata.position));
+          final posUs = (getCalculatedPositionSeconds() * 1000000).toInt();
+          return DBusGetPropertyResponse(DBusInt64(posUs));
+          
         case 'PlaybackStatus':
-          return DBusGetPropertyResponse(DBusString('Playing'));
+          return DBusGetPropertyResponse(DBusString(_currentMetadata.status));
+          
         case 'Volume':
-          return DBusGetPropertyResponse(DBusDouble(0.5));
+          return DBusGetPropertyResponse(DBusDouble(_currentMetadata.volume));
+          
         case 'Metadata':
-          // Metadata is a Dictionary (Map)
           return DBusGetPropertyResponse(DBusDict(
-            DBusSignature('s'), // Key signature (String)
-            DBusSignature('v'), // Value signature (Variant)
+            DBusSignature('s'),
+            DBusSignature('v'),
             {
-              DBusString('xesam:title'): DBusVariant(DBusString('Song Name')),
-              DBusString('xesam:artist'): DBusVariant(DBusArray.string(['Artist Name'])),
+              DBusString('xesam:title'): DBusVariant(DBusString(_currentMetadata.title)),
+              DBusString('xesam:artist'): DBusVariant(DBusArray.string([_currentMetadata.artist])), // Artists are typically an array
               DBusString('mpris:trackid'): DBusVariant(DBusObjectPath('/org/mpris/MediaPlayer2/Track/0')),
-              DBusString('mpris:length'): DBusVariant(DBusInt64(240000000)),
-              DBusString('mpris:artUrl'): DBusVariant(DBusString('file:///tmp/album-art.jpg')),
-              DBusString('mpris:position'): DBusVariant(DBusInt64(100000000)),
+              DBusString('mpris:length'): DBusVariant(DBusInt64(_currentMetadata.duration * 1000000)),
+              if (_lastArtPath != null)
+                DBusString('mpris:artUrl'): DBusVariant(DBusString(_lastArtPath!)),
             },
           ));
       }
@@ -133,10 +155,12 @@ class MprisService extends DBusObject{
 
   Future<void> updateMetadata(MediaMetadata meta) async {
     _currentMetadata = meta;
+    final artUri = await _getArtUrl(meta.albumArt);
+
+    setPlaybackState(meta.status == 'Playing', meta.position.toDouble());
 
     // MediaMetadata stores position/duration in seconds (as used by the UI).
     // MPRIS requires microseconds, so we convert here
-    final int positionUs = meta.position * 1000000;
     final int durationUs = meta.duration * 1000000;
 
     final Map<DBusString, DBusVariant> dbusMetadata = {
@@ -144,12 +168,12 @@ class MprisService extends DBusObject{
       DBusString('xesam:artist'): DBusVariant(DBusArray.string([meta.artist])),
       DBusString('xesam:album'): DBusVariant(DBusString(meta.album)),
       DBusString('mpris:length'): DBusVariant(DBusInt64(durationUs)),
-      DBusString('mpris:position'): DBusVariant(DBusInt64(positionUs)),
       DBusString('mpris:trackid'): DBusVariant(DBusObjectPath('/org/mpris/MediaPlayer2/Track/0')),
-      // Only add artUrl if it exists
-      if (meta.albumArt.isNotEmpty) 
-        DBusString('mpris:artUrl'): DBusVariant(DBusString(meta.albumArt)),
     };
+
+    if (artUri != null) {
+      dbusMetadata[DBusString('mpris:artUrl')] = DBusVariant(DBusString(artUri));
+    }
 
     await _client.emitSignal(
       path: DBusObjectPath('/org/mpris/MediaPlayer2'),
@@ -163,19 +187,113 @@ class MprisService extends DBusObject{
             DBusSignature('v'), 
             dbusMetadata
           )),
+          DBusString('PlaybackStatus'): DBusVariant(DBusString(meta.status)),
+
+          DBusString('CanGoNext'): DBusVariant(DBusBoolean(true)),
+          DBusString('CanGoPrevious'): DBusVariant(DBusBoolean(true)),
+          DBusString('CanPlay'): DBusVariant(DBusBoolean(true)),
+          DBusString('CanPause'): DBusVariant(DBusBoolean(true)),
+          DBusString('CanSeek'): DBusVariant(DBusBoolean(true)),
         }),
         DBusArray.string([]),
       ],
     );
+
+    await emitSeeked(meta.position.toDouble());
   }
 
-  Future<void> dispose() async {
+  Future<void> emitSeeked(double positionSeconds) async {
+    final int positionUs = (positionSeconds * 1000000).toInt();
+    
+    await _client.emitSignal(
+      path: DBusObjectPath('/org/mpris/MediaPlayer2'),
+      interface: 'org.mpris.MediaPlayer2.Player',
+      name: 'Seeked',
+      values: [DBusInt64(positionUs)],
+    );
+  }
+
+
+  Future<String?> _getArtUrl(String base64Art) async {
+    if (base64Art.isEmpty) return null;
+
     try {
-      await _client.releaseName(serviceName);
-      await _client.unregisterObject(this);
-      _client.close();
+      final directory = Directory('/tmp/album_art');
+      if (!await directory.exists()) await directory.create(recursive: true);
+
+      final file = File('${directory.path}/current_art.jpg');
+
+      // Sanitize base64 string directly (strip header and apply padding)
+      String cleanBase64 = base64Art.contains(',') ? base64Art.split(',')[1] : base64Art;
+      final remainder = cleanBase64.length % 4;
+      if (remainder > 0) {
+        cleanBase64 += '=' * (4 - remainder);
+      }
+
+      final bytes = base64Decode(cleanBase64);
+      await file.writeAsBytes(bytes);
+
+      _lastArtPath = 'file://${file.path}';
+      return _lastArtPath;
     } catch (e) {
-      debugPrint("[MPRIS] Error during disposal: $e");
+      debugPrint('[MPRIS] Error while decoding album art : $e');
+      return null;
+    }
+  }
+
+  void setPlaybackState(bool isPlaying, double positionSeconds) {
+    if (isPlaying) {
+      _playbackStartedAt = DateTime.now();
+      _basePositionSeconds = positionSeconds;
+    } else {
+      debugPrint("[MPRIS] Pause/Stop state received");
+      // Calculate current position inline before resetting the timestamp
+      if (_playbackStartedAt != null) {
+        final elapsed = DateTime.now().difference(_playbackStartedAt!).inMicroseconds / 1000000;
+        _basePositionSeconds += elapsed;
+      } else {
+        _basePositionSeconds = positionSeconds;
+      }
+
+      _playbackStartedAt = null;
+    }
+  }
+
+  double getCalculatedPositionSeconds() {
+    if (_playbackStartedAt == null) return _basePositionSeconds;
+    final elapsed = DateTime.now().difference(_playbackStartedAt!).inMicroseconds / 1000000;
+    return _basePositionSeconds + elapsed;
+  }
+
+  Future<void> reset() async {
+    debugPrint("[MPRIS] Client disconnected. Clearing system tray metadata...");
+    
+    _currentMetadata = MediaMetadata.initial();
+    _lastArtPath = null;
+    _playbackStartedAt = null;
+    _basePositionSeconds = 0.0;
+
+    try {
+      await _client.emitSignal(
+        path: DBusObjectPath('/org/mpris/MediaPlayer2'),
+        interface: 'org.freedesktop.DBus.Properties',
+        name: 'PropertiesChanged',
+        values: [
+          DBusString('org.mpris.MediaPlayer2.Player'),
+          DBusDict(DBusSignature('s'), DBusSignature('v'), {
+            DBusString('Metadata'): DBusVariant(DBusDict(
+              DBusSignature('s'), 
+              DBusSignature('v'), 
+              {} // Empty metadata dictionary
+            )),
+            DBusString('PlaybackStatus'): DBusVariant(DBusString('Stopped')),
+          }),
+          DBusArray.string([]),
+        ],
+      );
+      debugPrint("[MPRIS] Reset successful");
+    } catch (e) {
+      debugPrint("[MPRIS] Failed to emit reset signal: $e");
     }
   }
 }

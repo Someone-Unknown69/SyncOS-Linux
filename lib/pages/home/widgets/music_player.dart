@@ -6,8 +6,11 @@ import 'dart:io';
 import '../../../services/socket_server.dart';
 import '../../../theme/app_theme.dart';
 import 'dart:math';
+import '../../../models/music_controls.dart';
 
 // -------------------------------      Music Widget     -------------------------------------------
+
+final MusicControls _musicControls = MusicControls();
 
 class MusicThemeService {
   /// Generates a Material 3 ColorScheme directly from an image.
@@ -192,7 +195,7 @@ class _MusicPlayerWidgetState extends State<MusicPlayerWidget> {
                           // Previous Button
                           IconButton(
                             onPressed: () {
-                              widget.client!.send('music', 'control', {'method': 'previous'});
+                              _musicControls.previous();
                             },
                             icon: const Icon(Icons.skip_previous_rounded, size: 26),
                             style: IconButton.styleFrom(
@@ -207,7 +210,7 @@ class _MusicPlayerWidgetState extends State<MusicPlayerWidget> {
                           // Primary Play/Pause Button
                           IconButton.filled(
                             onPressed: () {
-                              widget.client!.send('music', 'control', {'method': 'play_pause'});
+                              _musicControls.playpause();
                             },
                             iconSize: 40,
                             icon: Icon(
@@ -225,7 +228,7 @@ class _MusicPlayerWidgetState extends State<MusicPlayerWidget> {
                           // Next Button
                           IconButton(
                             onPressed: () {
-                              widget.client!.send('music', 'control', {'method': 'next'});
+                              _musicControls.next();
                             },
                             icon: const Icon(Icons.skip_next_rounded, size: 26),
                             style: IconButton.styleFrom(
@@ -382,14 +385,7 @@ class _MusicProgressSliderState extends State<MusicProgressSlider>
       onHorizontalDragEnd: (d) {
         if (_dragValue != null && widget.client != null) {
           
-          widget.client!.send(
-            "music", 
-            "control", 
-            {
-              "method" : 'seek',
-              "position": (_dragValue! * widget.duration).toInt(),
-            }
-          );
+          _musicControls.seek((_dragValue! * widget.duration).toInt());
 
           setState(() => _localPosition = _dragValue! * widget.duration);
         }
