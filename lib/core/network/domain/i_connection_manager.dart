@@ -1,0 +1,31 @@
+import '../domain/connection_config.dart';
+
+// Domain interface for connection manager 
+// Any connection services must match the following blueprint
+enum ConnectionStatus {
+  connected,   // Fully authenticated, connection is active and authorized
+  inactive,    // Server is inactive but not connected
+  active,      // Server is active
+}
+
+abstract class IConnectionManager {
+
+  // streams
+  Stream<String> get rawMessageStream;
+  Stream<ConnectionStatus> get connectionStatusStream;
+
+  // status
+  ConnectionConfig? get activeConfig;
+  ConnectionStatus get status;
+
+  // connection
+  Future<void> startServer();
+  Future<void> stopServer();
+
+  // Authorization
+  Future<void> acceptConnection(String op);
+  Future<void> rejectConnection(String op);
+
+  // The implementation handles the serialization.
+  void send(String op, String action, Map<String, dynamic> args);
+}

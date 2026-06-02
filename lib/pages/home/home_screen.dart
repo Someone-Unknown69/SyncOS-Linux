@@ -80,7 +80,34 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _pairingService = PairingService(port: _port);
     client = SocketServer(pairingService: _pairingService);
+    client.onPairingRequested = _showPairingConfirmationDialog;
     _initialize();
+  }
+
+  Future<bool> _showPairingConfirmationDialog(String clientAddress) async {
+    if (!mounted) return false;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Incoming Pairing Request'),
+          content: Text('A device at $clientAddress is trying to connect. Do you want to allow pairing?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Reject'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Confirm'),
+            ),
+          ],
+        );
+      },
+    );
+
+    return confirmed ?? false;
   }
 
   Future<void> _initialize() async {

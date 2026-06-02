@@ -112,7 +112,7 @@ class MediaPoller {
   // this will guarentee a healthy relationship between our mobile side and laptop side music service
   //
   // what is a healthy relationship?
-  // I don't know son... we are fumblers
+  // I don't know son... we are fumblers (dead rose emoji)
   static const String myServiceName = 'org.mpris.MediaPlayer2.SyncOSPlayer';
 
   Future<void> start(void Function(String op, String action, Map<String, dynamic> args) onSend) async {

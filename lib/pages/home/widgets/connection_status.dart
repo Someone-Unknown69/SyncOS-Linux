@@ -26,9 +26,9 @@ class QrCodeCard extends StatelessWidget {
     final colorScheme = theme.colorScheme;
     
     final qrData = jsonEncode({
+      "type" : "tcp",
       "ip": localIP,
       "port": port,
-      "http_port": port + 1,
       "token": pairingService.pairingToken,
     });
 

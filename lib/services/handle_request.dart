@@ -138,7 +138,7 @@ class HandleRequest {
     if(action == 'send') {
       // file requested from other device
       // will add later
-    } else if (action == 'recieve') {
+    } else if (action == 'receive') {
       debugPrint('[Handle FTP]$args');
       FileTransfer().recieveFile(args);
     } else {

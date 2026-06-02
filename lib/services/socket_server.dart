@@ -12,6 +12,7 @@ import 'Music/mpris_service.dart';
 // --------------------------------    Socket Class      -------------------------------------------------
  
 class SocketServer extends ChangeNotifier{
+
   // ------------------------------    Class Variables    ------------------------------------------------
   ServerSocket? _server;
   final ValueNotifier<bool> connectionStatus = ValueNotifier<bool>(false);
@@ -41,6 +42,7 @@ class SocketServer extends ChangeNotifier{
   // -------------------------------    Connection Information    ---------------------------------
   final ValueNotifier<int> connectedClients = ValueNotifier<int>(0);
   final ValueNotifier<String?> pendingClientIP = ValueNotifier<String?>(null);
+  Future<bool> Function(String clientAddress)? onPairingRequested;
 
 
   // ---------------------------------    Getters    -------------------------------------------- 
@@ -127,7 +129,7 @@ class SocketServer extends ChangeNotifier{
     );
   }
 
-  Future<void> acceptConnection() async { 
+  Future<void> acceptConnection(String op) async { 
     if (_pendingSocket == null) return;
 
     _client = _pendingSocket;
@@ -135,10 +137,20 @@ class SocketServer extends ChangeNotifier{
     pendingClientIP.value = null;
     connectedClients.value = 1;
 
+    Map<String, dynamic> args = {};
+    if(op == 'auth') {
+      args['token'] = _pairingService.pairingToken;
+    }
+
     try {
-      _sendRaw('ACCEPTED');
+      send(op, 'accepted', args);
+      if(op == 'auth') {
+        debugPrint('[Authentication] Accepted sent');
+      } else if (op == 'pair') {
+        debugPrint('[Pairing] Accepted sent');
+      }
     } catch (e) {
-      debugPrint('[Pairing] Handshake failed: $e');
+      debugPrint('[Accept] Handshake failed: $e');
     }
 
     // start all the services
@@ -147,16 +159,19 @@ class SocketServer extends ChangeNotifier{
     notifyListeners();
   }
 
-  void rejectConnection() {
+  void rejectConnection(String op) {
     if (_pendingSocket != null) {
-      try {
-        final jsonData = utf8.encode('REJECTED');
-        final lengthBytes = ByteData(4)..setUint32(0, jsonData.length, Endian.big);
-        _pendingSocket!.add(lengthBytes.buffer.asUint8List());
-        _pendingSocket!.add(jsonData);
-      } catch (e) {
-        debugPrint('[Reject] Failed to send reject response: $e');
+    
+    try {
+      send(op, 'rejected', {});
+      if(op == 'auth') {
+        debugPrint('[Authentication] Rejected sent');
+      } else if (op == 'pair') {
+        debugPrint('[Pairing] Rejected sent');
       }
+    } catch (e) {
+      debugPrint('[Reject] Handshake failed: $e');
+    }
       _pendingSocket!.destroy();
       _pendingSocket = null;
       pendingClientIP.value = null;
@@ -217,7 +232,7 @@ class SocketServer extends ChangeNotifier{
   // ----------------------------    handling + sending commands    -------------------------------
 
   // Method to handle incoming commands from clients
-  void _handleCommand(String command, Socket socket) {
+  Future<void> _handleCommand(String command, Socket socket) async {
     try {
       if (command == "PING" || command == "ACCEPTED" || command == "REJECTED") {
         debugPrint('Received : $command');
@@ -230,12 +245,41 @@ class SocketServer extends ChangeNotifier{
       final data = jsonDecode(command);
       
       if (socket == _pendingSocket) {
-        if (data['op'] == 'auth' && data['token'] == _pairingService.pairingToken) {
-          debugPrint('[Pairing] Auto-accepting connection from authenticated client.');
-          acceptConnection();
+        final args = data['args'];
+        
+        debugPrint('[Authentication] Auth token : ${data['args']} & ${_pairingService.pairingToken} from authenticated client.');
+        if (data['op'] == 'auth') {
+          
+          if(args['token'] == _pairingService.pairingToken) {
+            debugPrint('[Authentication] Auto-accepting connection from authenticated client.');
+            acceptConnection('auth');
+          
+          } else {
+            debugPrint('[Authentication] Rejecting unauthenticated client.');
+            rejectConnection('auth');
+          }
+
+        } else if (data['op'] == 'pair') {
+          
+          if (onPairingRequested != null) {
+            debugPrint('[Pairing] UI confirmation required...');
+            
+            // Await the user's decision from the UI
+            final confirmed = await onPairingRequested!(_pendingSocket!.remoteAddress.address);
+            
+            if (confirmed) {
+              // Logic to generate/retrieve token from _pairingService
+              acceptConnection('pair'); // This sends the 'accepted' + token
+            } else {
+              rejectConnection('pair');
+            }
+          } else {
+            // If no UI listener, reject for safety
+            rejectConnection('pair');
+          }
         } else {
-          debugPrint('[Pairing] Invalid auth token, rejecting.');
-          rejectConnection();
+          debugPrint('[Authentication] Invalid auth token, rejecting.');
+          rejectConnection('Invalid auth token');
         }
         return;
       }
