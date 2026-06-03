@@ -1,5 +1,4 @@
 import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:laptop_controller/theme/app_theme.dart';
@@ -54,7 +53,6 @@ Future<void> _readPairingDetails() async {
         _localIP = localIP;
         _port = config is TcpConfig ? config.port : 9999;
         _token = secureToken;
-        debugPrint("token set as : $_token");
         _isLoading = false;
       });
     } catch (e) {

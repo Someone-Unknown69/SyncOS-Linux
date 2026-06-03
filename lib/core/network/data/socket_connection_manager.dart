@@ -199,7 +199,14 @@ class SocketConnectionManager implements IConnectionManager{
           
           if (bytes.length >= 4 + length) {
             final payload = bytes.sublist(4, 4 + length);
-            final jsonString = utf8.decode(payload);
+
+            final String jsonString;
+            if (payload.length >= 2 && payload[0] == 0x1F && payload[1] == 0x8B) {
+              jsonString = utf8.decode(gzip.decode(payload));
+            } else {
+              jsonString = utf8.decode(payload);
+            }
+
             _handleCommand(jsonString, socket);
             
             _buffer.clear();
@@ -296,10 +303,13 @@ class SocketConnectionManager implements IConnectionManager{
   	if (_client == null && _pendingSocket == null) return;
   	try {
       final socket = _client ?? _pendingSocket!;
-      final jsonData = utf8.encode(data);
-      final lengthBytes = ByteData(4)..setUint32(0, jsonData.length, Endian.big);
+      final rawBytes = utf8.encode(data);
+
+      final compressedBytes = gzip.encode(rawBytes);
+      final lengthBytes = ByteData(4)..setUint32(0, compressedBytes.length, Endian.big);
+
       socket.add(lengthBytes.buffer.asUint8List());
-      socket.add(jsonData);
+      socket.add(compressedBytes);
     } catch (e) {
       debugPrint('[Send] Send raw error: $e');
     }

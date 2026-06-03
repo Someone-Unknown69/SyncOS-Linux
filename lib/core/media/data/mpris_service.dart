@@ -262,7 +262,6 @@ class MprisService extends DBusObject implements IMediaNotification{
       _playbackStartedAt = DateTime.now();
       _basePositionSeconds = positionSeconds;
     } else {
-      debugPrint("[MPRIS] Pause/Stop state received");
       // Calculate current position inline before resetting the timestamp
       if (_playbackStartedAt != null) {
         final elapsed = DateTime.now().difference(_playbackStartedAt!).inMicroseconds / 1000000;
