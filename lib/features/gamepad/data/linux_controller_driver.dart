@@ -1,86 +1,8 @@
 import 'dart:ffi';
 import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
+import 'package:laptop_controller/features/gamepad/domain/i_controller_service.dart';
 
-class ControllerService {
-  static final ControllerService _instance = ControllerService._internal();
-  factory ControllerService() => _instance;
-  ControllerService._internal();
-
-  final LinuxDriver _driver = LinuxDriver();
-  bool _initialized = false;
-
-  final Map<String, int> _pressTimestamps = {};
-  static const int _minHoldDurationMs = 18; // Slightly longer than a 60Hz frame (16.6ms)
-
-  void init() {
-    if (_initialized) return;
-    _driver.init();
-    _initialized = true;
-  }
-
-  void keyPress(String action, String keyName) async {
-    if (!_initialized) init();
-    final keyCode = LinuxDriver.keyMap[keyName];
-
-
-    if(keyCode != null) {
-      if(action == 'down') {
-        _pressTimestamps[keyName] = DateTime.now().millisecondsSinceEpoch;
-        _driver.keyPressDown(keyCode);
-      } else if(action == 'up') {
-
-        final startTime = _pressTimestamps[keyName];
-
-        if (startTime != null) {
-          // If released too fast, wait out the remaining time of the minimum frame threshold
-          while ((DateTime.now().millisecondsSinceEpoch - startTime) < _minHoldDurationMs) {
-            // Spin inline to hold the kernel event open precisely across the frame boundary
-          }
-          _pressTimestamps.remove(keyName);
-        }
-
-        _driver.keyPressUp(keyCode);
-      } else {
-        debugPrint("[Gamepad] Invalid key action");
-      }
-    } else {
-      debugPrint("[Gamepad] Unknown key: $keyName");
-    }
-  }
-
-  // --- ANALOG STICK UPDATES ---
-  /// Updates the absolute axes positioning for Analog Sticks
-  /// Expects normalized values [x] and [y] ranging from -1.0 to 1.0
-  void updateLeftStick(double x, double y) {
-    if (!_initialized) init();
-    _driver.updateLeftAnalog(x, y);
-  }
-
-  void updateRightStick(double x, double y) {
-    if (!_initialized) init();
-    _driver.updateRightAnalog(x, y);
-  }
-
-  void updateTriggers(double l2, double r2) {
-    if (!_initialized) init();
-    _driver.updateTriggers(l2, r2);
-  }
-
-  void updateDpad(int x, int y) {
-    if (!_initialized) init();
-    _driver.updateDpad(x, y);
-  }
-
-  void dispose() {
-    if (_initialized) {
-      _driver.dispose();
-      _initialized = false;
-    }
-  }
-}
-
-// ----------------------------------------      Linux     ---------------------------------------------
 // Following this is the code for simulating keypresses by writing the structs in /dev/uinput
 // It writers the key struct 2 times (pressed and released) 
 
@@ -98,12 +20,12 @@ sealed class UInputUserSetup extends Struct {
   @Uint16() external int idVendor;  // Fake Manufacturer ID
   @Uint16() external int idProduct; // Fake Product ID
   @Uint16() external int idVersion; // Version number
-  @Array(80) external Array<Uint8> name; // The name "SyncOS Keyboard"
+  @Array(80) external Array<Uint8> name; 
   @Uint32() external int ffEffectsMax;   // Force feedback (0 for us rn)
 }
 
 
-class LinuxDriver {
+class LinuxControllerDriver implements IControllerService{
   late int fd; // File Descriptor
   final libc = DynamicLibrary.open('libc.so.6'); // linux C library
 
@@ -155,6 +77,10 @@ class LinuxDriver {
   late final _close = libc.lookupFunction<Int32 Function(Int32), int Function(int)>('close');
   late final _gettimeofday = libc.lookupFunction<Int32 Function(Pointer<Void>, Pointer<Void>), int Function(Pointer<Void>, Pointer<Void>)>('gettimeofday');
 
+  final Map<String, int> _pressTimestamps = {};
+  static const int _minHoldDurationMs = 18; // Slightly longer than a 60Hz frame (16.6ms)
+
+  @override
   void init() {
     fd = _open('/dev/uinput'.toNativeUtf8(), 6); // O_WRONLY (2) | O_NONBLOCK (4)
     if (fd < 0) {
@@ -245,17 +171,47 @@ class LinuxDriver {
     });
   }
 
-  void keyPressUp(int keyCode) {
+  @override
+  void keyPress(String action, String keyName) async {
+    final keyCode = keyMap[keyName];
+
+    if(keyCode != null) {
+      if(action == 'down') {
+        _pressTimestamps[keyName] = DateTime.now().millisecondsSinceEpoch;
+        _keyPressDown(keyCode);
+      } else if(action == 'up') {
+
+        final startTime = _pressTimestamps[keyName];
+
+        if (startTime != null) {
+          // If released too fast, wait out the remaining time of the minimum frame threshold
+          while ((DateTime.now().millisecondsSinceEpoch - startTime) < _minHoldDurationMs) {
+            // Spin inline to hold the kernel event open precisely across the frame boundary
+          }
+          _pressTimestamps.remove(keyName);
+        }
+
+        _keyPressUp(keyCode);
+      } else {
+        debugPrint("[Gamepad] Invalid key action");
+      }
+    } else {
+      debugPrint("[Gamepad] Unknown key: $keyName");
+    }
+  }
+
+  void _keyPressUp(int keyCode) {
     _sendEvent(EV_KEY, keyCode, 0); // Key action execution
     _sendEvent(EV_SYN, SYN_REPORT, 0); // Flush sync stack framework instantly
   }
 
-  void keyPressDown(int keyCode) {
+  void _keyPressDown(int keyCode) {
     _sendEvent(EV_KEY, keyCode, 1); // Key action execution
     _sendEvent(EV_SYN, SYN_REPORT, 0); // Flush sync stack framework instantly
   }
   
-  void updateLeftAnalog(double x, double y) {
+  @override
+  void updateLeftStick(double x, double y) {
     // Convert -1.0 -> 1.0 down to integer ranges -128 -> 127
     int rawX = (x * 32767).round().clamp(-32768, 32767);
     int rawY = (-y * 32767).round().clamp(-32768, 32767);
@@ -265,7 +221,8 @@ class LinuxDriver {
     _sendEvent(EV_SYN, SYN_REPORT, 0);
   }
 
-  void updateRightAnalog(double x, double y) {
+  @override
+  void updateRightStick(double x, double y) {
     int rawX = (x * 32767).round().clamp(-32768, 32767);
     int rawY = (-y * 32767).round().clamp(-32768, 32767);
 
@@ -274,6 +231,7 @@ class LinuxDriver {
     _sendEvent(EV_SYN, SYN_REPORT, 0); 
   }
 
+  @override
   void updateTriggers(double l2, double r2) {
     int rawL2 = (l2 * 255).round().clamp(0, 255);
     int rawR2 = (r2 * 255).round().clamp(0, 255);
@@ -282,12 +240,14 @@ class LinuxDriver {
     _sendEvent(EV_SYN, SYN_REPORT, 0);
   }
 
+  @override
   void updateDpad(int x, int y) {
     _sendEvent(EV_ABS, ABS_HAT0X, x.clamp(-1, 1));
     _sendEvent(EV_ABS, ABS_HAT0Y, y.clamp(-1, 1));
     _sendEvent(EV_SYN, SYN_REPORT, 0);
   }
 
+  @override
   void dispose() {
     debugPrint("Virtual keyboard disposed successfully");
     _ioctl(fd, 0x5502, 0); // UI_DEV_DESTROY: Tell kernel to remove the device
@@ -308,6 +268,3 @@ class LinuxDriver {
     });
   }
 }
-
-
-// -----------------------------------------    Windows    -----------------------------------------------

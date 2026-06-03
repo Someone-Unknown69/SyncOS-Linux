@@ -17,8 +17,12 @@ class LocalMediaSender {
     await _localMediaInfo.start();
 
     _subscription = _localMediaInfo.metadataStream.listen((info) {
-      _handleInfoUpdate(info);
+      _sendInfoUpdate(info);
     });
+  }
+
+  void handleControlCommand(Map<String, dynamic> args) {
+    _localMediaInfo.control(args);
   }
 
   void stop() {
@@ -31,13 +35,34 @@ class LocalMediaSender {
     stop();
   }
 
-  void _handleInfoUpdate(MediaInfo info) {
+  void _sendInfoUpdate(MediaInfo info) {
     final hasNewArt = info.albumArtBase64.isNotEmpty;
 
     _connectionManager.send('music', 'update_metadata', info.toMap(includeArt: hasNewArt));
   }
 
-  void sendControlCommand(Map<String, dynamic> args) {
-    _localMediaInfo.control(args);
+  // TODO : Add a global stream for these
+
+  void sendPlayPause() {
+    _connectionManager.send('music', 'control', {'method' : 'play_pause'});
+  }
+
+  void sendNext() {
+    _connectionManager.send('music', 'control', {'method': 'next'});
+  }
+
+  void sendPrev() {
+    _connectionManager.send('music', 'control', {'method': 'previous'});
+  }
+
+  void sendSeek(int position) {
+    _connectionManager.send(
+      "music",
+      "control",
+      {
+        "method": 'seek',
+        "position": position,
+      },
+    );
   }
 }

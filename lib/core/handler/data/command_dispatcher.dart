@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:laptop_controller/features/gamepad/domain/i_controller_service.dart';
 import 'package:laptop_controller/features/media/data/local_media_sender.dart';
 import 'package:laptop_controller/features/media/provider/remote_media_state.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -15,6 +16,7 @@ class CommandDispatcher {
   final IConnectionManager _connectionManager;
   final LocalMediaSender _mediaSender;
   final FileTransferService _fileTransferService;
+  final IControllerService _controllerService;
 
   StreamSubscription<String>? _rawMessageSubscription;
   bool _isStarted = false;
@@ -24,6 +26,7 @@ class CommandDispatcher {
     this._connectionManager, 
     this._mediaSender,
     this._fileTransferService,
+    this._controllerService,
   );
 
   void start() {
@@ -43,7 +46,7 @@ class CommandDispatcher {
           if(action == 'update_metadata') {
             ref.read(musicProvider.notifier).updateMetadata(args);
           } else if (action == 'control') {
-            _mediaSender.sendControlCommand(args);
+            _mediaSender.handleControlCommand(args);
           }
           break;
         case 'battery_info':
@@ -62,6 +65,20 @@ class CommandDispatcher {
             // will add ability to send file requests in future 
           } 
           break;
+        case 'controller':
+          if(action == 'start') {
+            _controllerService.init();
+          } else if (action == 'left_analog') {
+            _controllerService.updateLeftStick(args['x'], args['y']);
+          } else if (action == 'right_analog') {
+            _controllerService.updateRightStick(args['x'], args['y']);
+          } else if (action == 'triggers') {
+            _controllerService.updateTriggers(args['l2'], args['r2']);
+          } else if (action == 'dpad') {
+            _controllerService.updateDpad(args['x'], args['y']);
+          } else {
+            _controllerService.keyPress(action, args['button']);
+          }
       }
     });
   }

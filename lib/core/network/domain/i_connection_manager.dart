@@ -19,7 +19,7 @@ abstract class IConnectionManager {
   ConnectionStatus get status;
 
   // connection
-  Future<void> startServer();
+  Future<void> startServer(ConnectionConfig config);
   Future<void> stopServer();
 
   // Authorization

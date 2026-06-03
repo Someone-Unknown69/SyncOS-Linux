@@ -59,9 +59,7 @@ class SocketConnectionManager implements IConnectionManager{
   // -----------------------------    Public interface      -------------------------------------
 
   @override
-  Future<void> startServer () async {
-    final config = await _storage.getConnectionConfig();
-
+  Future<void> startServer (ConnectionConfig config) async {
     if (config is TcpConfig) {
       if (_status == ConnectionStatus.active || _status == ConnectionStatus.connected) return;
       
@@ -247,11 +245,12 @@ class SocketConnectionManager implements IConnectionManager{
       
       if (socket == _pendingSocket) {
         final args = data['args'];
+        final token = await _storage.getPairingToken();
         
-        debugPrint('[Authentication] Auth token : ${data['args']} & ${_storage.getPairingToken()} from authenticated client.');
+        debugPrint('[Authentication] Auth token : ${data['args']} & $token from authenticated client.');
         if (data['op'] == 'auth') {
           
-          if(args['token'] == _storage.getPairingToken()) {
+          if(args['token'] == token) {
             debugPrint('[Authentication] Auto-accepting connection from authenticated client.');
             acceptConnection('auth');
           
@@ -284,8 +283,6 @@ class SocketConnectionManager implements IConnectionManager{
         }
         return;
       }
-      debugPrint('[Handle] Received command: $command');
-
 			if(_status == ConnectionStatus.connected) {
 				_messageController.add(command);
 			}

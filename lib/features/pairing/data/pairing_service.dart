@@ -12,6 +12,7 @@ class PairingService implements IPairingService {
     this._storage,
   );
 
+  @override
   String pairingToken = '';
 
   @override

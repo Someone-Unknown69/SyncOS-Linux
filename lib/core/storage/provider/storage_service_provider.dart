@@ -1,4 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:laptop_controller/core/network/domain/i_connection_manager.dart';
+import 'package:laptop_controller/core/network/provider/connection_provider.dart';
+import 'package:laptop_controller/core/storage/data/database_storage.dart';
 import 'package:laptop_controller/core/storage/data/prefs_storage.dart';
 import 'package:laptop_controller/core/storage/data/secure_storage.dart';
 import 'package:laptop_controller/core/storage/data/storage_service.dart';
@@ -12,5 +15,16 @@ final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
 // Provider for StorageService
 final storageServiceProvider = Provider<StorageService>((ref) {
   final prefs = ref.watch(sharedPreferencesProvider);
-  return StorageService(SecureStorage(), PrefsStorage(prefs));
+  return StorageService(SecureStorage(), PrefsStorage(prefs), DatabaseStorage());
+});
+
+// Expose whether the app is paired (checks secure storage for pairing token)
+final pairedProvider = StreamProvider<bool>((ref) async* {
+  final connectionManager = ref.watch(connectionManagerProvider);
+
+  yield connectionManager.status == ConnectionStatus.active;
+
+  await for (final status in connectionManager.connectionStatusStream) {
+    yield status == ConnectionStatus.connected;
+  }
 });

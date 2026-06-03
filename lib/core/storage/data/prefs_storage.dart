@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:laptop_controller/core/storage/domain/i_storage_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -6,11 +8,51 @@ class PrefsStorage implements IStorageService{
     PrefsStorage(this._prefs);
 
   @override
-  Future<void> write(String key, String value) => _prefs.setString(key, value);
+  Future<void> write<T>(String key, T value) async {
+    if (value is String) {
+      await _prefs.setString(key, value);
+    } else if (value is int) {
+      await _prefs.setInt(key, value);
+    } else if (value is bool) {
+      await _prefs.setBool(key, value);
+    } else if (value is double) {
+      await _prefs.setDouble(key, value);
+    } else {
+      // If it is a structural List or Map, convert it to a JSON string block
+      final String jsonString = jsonEncode(value);
+      await _prefs.setString(key, jsonString);
+    }
+  }
+
   @override
-  Future<String?> read(String key) => Future.value(_prefs.getString(key));
+  Future<T?> read<T>(String key) async {
+    if (T == String) {
+      return _prefs.getString(key) as T?;
+    }
+    if (T == int) {
+      return _prefs.getInt(key) as T?;
+    }
+    if (T == bool) {
+      return _prefs.getBool(key) as T?;
+    }
+    if (T == double) {
+      return _prefs.getDouble(key) as T?;
+    }
+
+    final String? rawJsonString = _prefs.getString(key);
+    if (rawJsonString == null) return null;
+
+    try {
+      final decodedData = jsonDecode(rawJsonString);
+      return decodedData as T?;
+    } catch (_) {
+      return null;
+    }
+  }
+
   @override
   Future<void> delete(String key) => _prefs.remove(key);
+
   @override
   Future<void> clearAll() => _prefs.clear();
 }

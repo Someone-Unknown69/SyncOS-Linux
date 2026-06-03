@@ -3,15 +3,16 @@ import 'dart:convert';
 import 'package:dbus/dbus.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:laptop_controller/core/media/domain/i_system_media_service.dart';
+import 'package:laptop_controller/core/media/domain/i_media_notification.dart';
+import 'package:laptop_controller/features/media/provider/remote_media_state.dart';
 import 'package:laptop_controller/models/media_metadata.dart';
-import 'package:laptop_controller/models/music_controls.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-class MprisService extends DBusObject implements ISystemMediaService{
+class MprisService extends DBusObject implements IMediaNotification{
   final DBusClient _client;
-  final MusicControls _musicControls = MusicControls();
+  final Ref _ref;
 
-  MprisService(this._client) : super(DBusObjectPath('/org/mpris/MediaPlayer2'));
+  MprisService(this._client, this._ref) : super(DBusObjectPath('/org/mpris/MediaPlayer2'));
 
   final String serviceName = 'org.mpris.MediaPlayer2.SyncOSPlayer';
   MediaInfo _currentMetadata = MediaInfo.empty;
@@ -64,25 +65,26 @@ class MprisService extends DBusObject implements ISystemMediaService{
     }
 
     if (methodCall.interface == 'org.mpris.MediaPlayer2.Player') {
+    final notifier = _ref.read(musicProvider.notifier);
     switch (methodCall.name) {
         case 'Play':
-          _musicControls.playpause();
+          notifier.togglePlayPause();
           return DBusMethodSuccessResponse([]);
 
         case 'Pause':
-          _musicControls.playpause();
+          notifier.togglePlayPause();
           return DBusMethodSuccessResponse([]);
 
         case 'PlayPause':
-          _musicControls.playpause();
+          notifier.togglePlayPause();
           return DBusMethodSuccessResponse([]);
 
         case 'Next':
-          _musicControls.next();
+          notifier.next();
           return DBusMethodSuccessResponse([]);
 
         case 'Previous':
-          _musicControls.previous();
+          notifier.previous();
           return DBusMethodSuccessResponse([]);
 
         case 'Seek':
@@ -90,14 +92,14 @@ class MprisService extends DBusObject implements ISystemMediaService{
           final double currentPosSec = getCalculatedPositionSeconds();
           final int targetPosSec = (currentPosSec + (offsetUs / 1000000)).toInt();
           
-          _musicControls.seek(targetPosSec);
+          notifier.seek(targetPosSec);
           return DBusMethodSuccessResponse([]);
 
         case 'SetPosition':
           final int positionUs = methodCall.values[1].asInt64();
           final int targetSeconds = (positionUs / 1000000).toInt();
           
-          _musicControls.seek(targetSeconds);
+          notifier.seek(targetSeconds);
           return DBusMethodSuccessResponse([]);
       }
     }
@@ -166,6 +168,7 @@ class MprisService extends DBusObject implements ISystemMediaService{
     );
   }
 
+  @override
   Future<void> updateMetadata(MediaInfo meta) async {
     _currentMetadata = meta;
     final artUri = await _getArtUrl(meta.albumArtBase64);
@@ -278,8 +281,9 @@ class MprisService extends DBusObject implements ISystemMediaService{
     return _basePositionSeconds + elapsed;
   }
 
+  @override
   Future<void> reset() async {
-    debugPrint("[MPRIS] Client disconnected. Clearing system tray metadata...");
+    debugPrint("[MPRIS] Music stopped Clearing Notification");
     
     _currentMetadata = MediaInfo.empty;
     _lastArtPath = null;
@@ -287,26 +291,16 @@ class MprisService extends DBusObject implements ISystemMediaService{
     _basePositionSeconds = 0.0;
 
     try {
-      await _client.emitSignal(
-        path: DBusObjectPath('/org/mpris/MediaPlayer2'),
-        interface: 'org.freedesktop.DBus.Properties',
-        name: 'PropertiesChanged',
-        values: [
-          DBusString('org.mpris.MediaPlayer2.Player'),
-          DBusDict(DBusSignature('s'), DBusSignature('v'), {
-            DBusString('Metadata'): DBusVariant(DBusDict(
-              DBusSignature('s'), 
-              DBusSignature('v'), 
-              {} // Empty metadata dictionary
-            )),
-            DBusString('PlaybackStatus'): DBusVariant(DBusString('Stopped')),
-          }),
-          DBusArray.string([]),
-        ],
-      );
-      debugPrint("[MPRIS] Reset successful");
+      if (_initialized) {
+        await _client.releaseName(serviceName);
+        await _client.unregisterObject(this);
+        
+        _initialized = false;
+        _initFuture = null;
+        debugPrint("[MPRIS] Service successfully unregistered and closed.");
+      }
     } catch (e) {
-      debugPrint("[MPRIS] Failed to emit reset signal: $e");
+      debugPrint("[MPRIS] Failed to cleanly unregister MPRIS service from D-Bus: $e");
     }
   }
 }

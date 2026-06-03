@@ -1,201 +1,216 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:laptop_controller/features/notification/domain/model/app_notification.dart';
+import 'package:laptop_controller/features/notification/provider/remote_notification_service_provider.dart';
 import '../../../theme/app_theme.dart';
-import '../../../services/notifications_service.dart';
 
-class Notifications extends StatefulWidget {
+class Notifications extends ConsumerStatefulWidget {
   const Notifications({super.key});
 
   @override
-  State<Notifications> createState() => NotificationsState();
+  ConsumerState<Notifications> createState() => NotificationsState();
 }
 
-class NotificationsState extends State<Notifications> {
-  final double borderRadius = AppTheme.borderRadius;
-  final double spacing = AppTheme.spacing;
-  final double padding = AppTheme.padding;
-
+class NotificationsState extends ConsumerState<Notifications> {
   final int animationSpeed = 400;
   final GlobalKey<AnimatedListState> _listKey = GlobalKey<AnimatedListState>();
 
+  // Tracks items sequentially in memory to coordinate indices for AnimatedList transitions
+  final List<AppNotification> _shadowList = [];
+  
   late final ValueNotifier<bool> _isEmptyNotifier;
-  late StreamSubscription<NotificationEvent> _subscription;
+  StreamSubscription<void>? _subscription;
 
   @override
   void initState() {
     super.initState();
-    final service = NotificationService();
-    
-    _isEmptyNotifier = ValueNotifier<bool>(service.notifications.isEmpty);
+    _isEmptyNotifier = ValueNotifier<bool>(true);
 
-    _subscription = service.events.listen((event) {
-      if (event is NotificationAddEvent) {
-        if (_isEmptyNotifier.value) {
-          _isEmptyNotifier.value = false;
-        }
-        _listKey.currentState?.insertItem(
-          event.index,
+    WidgetsBinding.instance.addPostFrameCallback((_) => _listenToNotificationChanges());
+  }
+
+  Future<void> _listenToNotificationChanges() async {
+    if (!mounted) return;
+
+    final service = ref.read(remoteNotificationServiceProvider);
+
+    final initialItems = await service.fetchAndSearchNotifications('');
+    _shadowList.addAll(initialItems);
+    _isEmptyNotifier.value = _shadowList.isEmpty;
+    setState(() {});
+
+    // Listen to changes emitted from our in memory storage event cycle
+    _subscription = service.onNotificationChange.listen((_) async {
+      if (!mounted) return;
+
+      final updatedItems = await service.fetchAndSearchNotifications('');
+      _syncAnimatedList(_shadowList, updatedItems);
+    });
+  }
+
+  void _syncAnimatedList(List<AppNotification> current, List<AppNotification> incoming) {
+    // Clear All Action
+    if (incoming.isEmpty && current.isNotEmpty) {
+      for (int i = current.length - 1; i >= 0; i--) {
+        final removedItem = current[i];
+        _listKey.currentState?.removeItem(
+          i,
+          (context, animation) => _buildAnimatedItem(removedItem, animation),
           duration: Duration(milliseconds: animationSpeed),
         );
-      } else if (event is NotificationClearEvent) {
-        final cleared = event.clearedNotifications;
-        for (int i = cleared.length - 1; i >= 0; i--) {
-          final removedItem = cleared[i];
-          _listKey.currentState?.removeItem(
-            i,
-            (context, animation) => FadeTransition(
-              opacity: animation,
-              child: SizeTransition(
-                sizeFactor: animation,
-                axisAlignment: -1.0,
-                child: Padding(
-                  padding: EdgeInsets.only(bottom: spacing),
-                  child: _notificationTemplate(
-                    context, 
-                    removedItem.app, 
-                    removedItem.body,
-                    removedItem.timestamp,
-                    removedItem.colorValue
-                  ),
-                ),
-              ),
-            ),
-            duration: Duration(milliseconds: animationSpeed),
-          );
-        }
-        _isEmptyNotifier.value = true;
       }
-    });
+      current.clear();
+      _isEmptyNotifier.value = true;
+      return;
+    }
+
+    // Handle Single New Items or Deletions
+    _isEmptyNotifier.value = incoming.isEmpty;
+
+    // Detect and process removals
+    for (int i = current.length - 1; i >= 0; i--) {
+      final oldItem = current[i];
+      if (!incoming.any((newItem) => newItem.id == oldItem.id)) {
+        current.removeAt(i);
+        _listKey.currentState?.removeItem(
+          i,
+          (context, animation) => _buildAnimatedItem(oldItem, animation),
+          duration: Duration(milliseconds: animationSpeed),
+        );
+      }
+    }
+
+    // Detect and process additions
+    for (int i = 0; i < incoming.length; i++) {
+      final newItem = incoming[i];
+      if (!current.any((oldItem) => oldItem.id == newItem.id)) {
+        current.insert(i, newItem);
+        _listKey.currentState?.insertItem(
+          i,
+          duration: Duration(milliseconds: animationSpeed),
+        );
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final service = NotificationService();
+    final service = ref.watch(remoteNotificationServiceProvider);
 
     return Container(
-      padding: EdgeInsets.all(padding),
+      padding: EdgeInsets.all(AppTheme.padding),
       clipBehavior: Clip.antiAliasWithSaveLayer,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(borderRadius),
+        borderRadius: BorderRadius.circular(AppTheme.borderRadius),
         color: colorScheme.surfaceContainerLow,
       ),
       child: Column(
         children: [
-          Center(
+          const Center(
             child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.notifications_active_rounded,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.notifications_active_rounded,
+                  color: Colors.white,
+                  size: 20.0,
+                ),
+                SizedBox(width: AppTheme.spacing),
+                Text(
+                  'Notifications',
+                  style: TextStyle(
                     color: Colors.white,
-                    size: 20.0,
+                    fontSize: 14.0,
                   ),
-                  SizedBox(width: spacing),
-                  Text(
-                    'Notifications',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 14.0,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
+            ),
           ),
-
-          SizedBox(height: spacing),
-      
+          const SizedBox(height: AppTheme.spacing),
           Expanded(
             child: ScrollConfiguration(
               behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(borderRadius),
+                borderRadius: BorderRadius.circular(AppTheme.borderRadius),
                 child: Stack(
                   children: [
                     AnimatedList(
                       key: _listKey,
-                      initialItemCount: service.notifications.length,
+                      initialItemCount: _shadowList.length,
                       physics: const BouncingScrollPhysics(),
                       itemBuilder: (context, index, animation) {
-                        final item = service.notifications[index];
-                        return FadeTransition(
-                          opacity: animation,
-                          child: SlideTransition(
-                            position: animation.drive(
-                              Tween<Offset>(
-                                begin: const Offset(0.0, -0.2),
-                                end: Offset.zero,            
-                              ).chain(CurveTween(curve: Curves.easeOutQuad)), 
-                            ),
-                            child: Padding(
-                              padding: EdgeInsets.only(bottom: spacing),
-                              child: _notificationTemplate(
-                                context, 
-                                item.app, 
-                                item.body,
-                                item.timestamp,
-                                item.colorValue
-                              ),
-                            ),
+                        if (index >= _shadowList.length) return const SizedBox.shrink();
+                        final item = _shadowList[index];
+                        return SlideTransition(
+                          position: animation.drive(
+                            Tween<Offset>(
+                              begin: const Offset(0.0, -0.2),
+                              end: Offset.zero,
+                            ).chain(CurveTween(curve: Curves.easeOutQuad)),
                           ),
+                          child: _buildAnimatedItem(item, animation),
                         );
                       },
                     ),
-
-                    ValueListenableBuilder(
+                    ValueListenableBuilder<bool>(
                       valueListenable: _isEmptyNotifier,
                       builder: (context, value, child) {
-                        if(!value) return const SizedBox.shrink();
-                        return Center(
+                        if (!value) return const SizedBox.shrink();
+                        return const Center(
                           child: Text(
-                            "No Notifications", 
+                            "No Notifications",
                             style: TextStyle(color: Colors.white),
                           ),
                         );
-                      }
+                      },
                     ),
                   ],
                 ),
               ),
             ),
           ),
-
-          SizedBox(height: spacing),
-
+          const SizedBox(height: AppTheme.spacing),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               FilledButton.icon(
-                onPressed: () => {
-                  NotificationService().clearNotifications()
-                },
+                onPressed: () => service.clearAllNotifications(),
                 icon: const Icon(Icons.clear_all_rounded),
                 label: const Text("Clear all"),
                 style: FilledButton.styleFrom(
-                  elevation: 0, 
+                  elevation: 0,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(borderRadius),
+                    borderRadius: BorderRadius.circular(AppTheme.borderRadius),
                   ),
                   backgroundColor: colorScheme.secondary,
                 ),
               ),
-
               FilledButton.icon(
-                onPressed: () => {
-                  NotificationService().addNotification(
-                    "Phone", 
-                    "Your Phone Linging..", 
-                    DateTime.now(),
-                    0xFF0A192F,
-                  )
+                onPressed: () {
+                  // Simulating a payload insertion into our clean runtime architecture
+                  service.saveNotification(
+                    AppNotification(
+                      id: DateTime.now().millisecondsSinceEpoch,
+                      packageName: "com.android.phone",
+                      appName: "Phone",
+                      title: "Incoming Call",
+                      body: "Your Phone Linging..",
+                      timestamp: DateTime.now(),
+                      expiresAt: DateTime.now().add(const Duration(hours: 1)),
+                      colorValue: 0xFF0A192F,
+                      actions: const [],
+                    ),
+                  );
                 },
                 icon: const Icon(Icons.arrow_circle_right_rounded),
                 label: const Text("See All"),
                 style: FilledButton.styleFrom(
-                  elevation: 0, 
+                  elevation: 0,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(borderRadius),
+                    borderRadius: BorderRadius.circular(AppTheme.borderRadius),
                   ),
                   backgroundColor: colorScheme.primary,
                 ),
@@ -207,22 +222,42 @@ class NotificationsState extends State<Notifications> {
     );
   }
 
-  // Notification template
+  Widget _buildAnimatedItem(AppNotification item, Animation<double> animation) {
+    return FadeTransition(
+      opacity: animation,
+      child: SizeTransition(
+        sizeFactor: animation,
+        axisAlignment: -1.0,
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: AppTheme.spacing),
+          child: _notificationTemplate(
+            context,
+            item.appName,
+            item.body,
+            item.timestamp,
+            item.colorValue,
+            item.id,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _notificationTemplate(
     BuildContext context,
     String appName,
     String content,
     DateTime timestamp,
-    int colorValue
+    int colorValue,
+    int notificationId,
   ) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    Color textColor = Color(colorValue).computeLuminance() > 0.1 ? Colors.black : Colors.white;
-
+    final Color textColor = Color(colorValue).computeLuminance() > 0.1 ? Colors.black : Colors.white;
     final String formattedTime = _formatNotificationTime(timestamp);
 
     return Container(
-      key: ValueKey(content + timestamp.toString()),
+      key: ValueKey('${notificationId}_$content'),
       height: 80,
       decoration: BoxDecoration(
         color: Color(colorValue),
@@ -244,9 +279,7 @@ class NotificationsState extends State<Notifications> {
               color: textColor,
             ),
           ),
-          
           const SizedBox(width: 14),
-
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -265,7 +298,7 @@ class NotificationsState extends State<Notifications> {
                 const SizedBox(height: 4),
                 Text(
                   content,
-                  maxLines: 2, 
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 13,
@@ -275,9 +308,7 @@ class NotificationsState extends State<Notifications> {
               ],
             ),
           ),
-
           const SizedBox(width: 12),
-
           Align(
             alignment: Alignment.topRight,
             child: Padding(
@@ -296,22 +327,13 @@ class NotificationsState extends State<Notifications> {
     );
   }
 
-// to format datetime raw string
   String _formatNotificationTime(DateTime time) {
     final now = DateTime.now();
     final difference = now.difference(time);
 
-    // If it happened less than a minute ago
-    if (difference.inMinutes < 1) {
-      return "Just now";
-    }
-    
-    // If it happened within the last hour, show relative minutes (e.g., "5m ago")
-    if (difference.inHours < 1) {
-      return "${difference.inMinutes}m ago";
-    }
-    
-    // Fallback to standard clock format (HH:MM)
+    if (difference.inMinutes < 1) return "Just now";
+    if (difference.inHours < 1) return "${difference.inMinutes}m ago";
+
     final hour = time.hour.toString().padLeft(2, '0');
     final minute = time.minute.toString().padLeft(2, '0');
     return "$hour:$minute";
@@ -319,7 +341,7 @@ class NotificationsState extends State<Notifications> {
 
   @override
   void dispose() {
-    _subscription.cancel();
+    _subscription?.cancel();
     _isEmptyNotifier.dispose();
     super.dispose();
   }

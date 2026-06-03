@@ -1,16 +1,15 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:laptop_controller/features/media/provider/local_media_sender_provider.dart';
+import 'package:laptop_controller/features/media/provider/remote_media_state.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:io';
-import '../../../services/socket_server.dart';
 import '../../../theme/app_theme.dart';
 import 'dart:math';
-import '../../../models/music_controls.dart';
 
 // -------------------------------      Music Widget     -------------------------------------------
-
-final MusicControls _musicControls = MusicControls();
 
 class MusicThemeService {
   /// Generates a Material 3 ColorScheme directly from an image.
@@ -31,92 +30,71 @@ class MusicThemeService {
   }
 }
 
-class MusicPlayerWidget extends StatefulWidget {
-  final String imagePath;
-  final String trackName;
-  final String artistName;
-  final int position;
-  final int duration;
-  final String status;
-  final String? albumArtBase64;
-  final SocketServer? client;
-
-  const MusicPlayerWidget({
-    super.key,
-    required this.imagePath,
-    required this.trackName,
-    required this.artistName,
-    required this.position,
-    required this.duration,
-    required this.status,
-    required this.albumArtBase64,
-    this.client,
-  });
+class MusicPlayerWidget extends ConsumerStatefulWidget {
+  const MusicPlayerWidget({super.key});
 
   @override
-  State<MusicPlayerWidget> createState() => _MusicPlayerWidgetState();
+  ConsumerState<MusicPlayerWidget> createState() => _MusicPlayerWidgetState();
 }
 
-class _MusicPlayerWidgetState extends State<MusicPlayerWidget> {
+class _MusicPlayerWidgetState extends ConsumerState<MusicPlayerWidget> {
   ColorScheme? _dynamicScheme;
-  Uint8List? _cacheImageBytes;
+  String _lastImagePath = '';
 
   @override
   void initState() {
     super.initState();
-    _updateTheme();
+    final info = ref.read(musicProvider);
+    _lastImagePath = info.albumArtBase64;
+    _updateTheme(info.albumArtBase64);
   }
+
+  Future<void> _updateTheme(String imagePath) async {
+    ImageProvider provider;
+    if (imagePath != 'N/A' && imagePath.length > 50) {
+      try {
+        Uint8List bytes = base64Decode(imagePath);
+        try {
+          bytes = Uint8List.fromList(gzip.decode(bytes));
+        } catch (_) {} // ignore if not gzipped
+        provider = MemoryImage(bytes);
+      } catch (e) {
+        provider = const AssetImage('assets/images/album2.png');
+      }
+    } else {
+      provider = const AssetImage('assets/images/album2.png');
+    }
+
+    final scheme = await MusicThemeService.generate(provider, Brightness.dark);
+    if (mounted) {
+      setState(() => _dynamicScheme = scheme);
+    }
+  }
+
 
   @override
-  void didUpdateWidget(MusicPlayerWidget oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.albumArtBase64 != widget.albumArtBase64 || 
-    oldWidget.imagePath != widget.imagePath) {
-      _updateTheme();
-    }
-  }
-
-  Uint8List? _decodeBase64Image(String? base64Str) {
-    if (base64Str == null || base64Str == 'N/A' || base64Str.length < 50) return null;
-    try {
-      String cleanBase64 = base64Str.replaceAll(RegExp(r'\s+'), '');
-      int pad = cleanBase64.length % 4;
-      if (pad > 0) {
-        cleanBase64 += '=' * (4 - pad);
-      }
-      Uint8List bytes = base64Decode(cleanBase64);
-      try {
-        bytes = Uint8List.fromList(gzip.decode(bytes));
-      } catch (_) {}
-      return bytes;
-    } catch (e) {
-      debugPrint("Error decoding base64 image: $e");
-      return null;
-    }
-  }
-
-  Future<void> _updateTheme() async {
-    final bytes = _decodeBase64Image(widget.albumArtBase64) ?? _decodeBase64Image(widget.imagePath);
-
-    if(mounted) {
-      setState(() {
-        _cacheImageBytes = bytes; 
-      });
-    }
-
-    if (bytes != null) {
-      final scheme = await MusicThemeService.generate(
-        MemoryImage(bytes),
-        Brightness.dark,
-      );
-      if(mounted) {
-        setState(() => _dynamicScheme = scheme);
-      }
-    }
-  }
-
-@override
   Widget build(BuildContext context) {
+    final info = ref.watch(musicProvider);
+    final sendControls = ref.watch(mediaSenderProvider);
+
+    if (info.albumArtBase64 != _lastImagePath) {
+      _lastImagePath = info.albumArtBase64;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _updateTheme(info.albumArtBase64));
+    }
+
+    Uint8List? imageBytes;
+    final imagePath = info.albumArtBase64;
+    if (imagePath != 'N/A' && imagePath.length > 50) {
+      try {
+        imageBytes = base64Decode(imagePath);
+        try {
+          imageBytes = Uint8List.fromList(gzip.decode(imageBytes));
+        } catch (_) {}
+      } catch (e) {
+        debugPrint("Error decoding base64 image: $e");
+      }
+    }
+
     final theme = _dynamicScheme ?? Theme.of(context).colorScheme;
 
     return Theme(
@@ -136,9 +114,9 @@ class _MusicPlayerWidgetState extends State<MusicPlayerWidget> {
               children: [
                 // Background Image
                 Positioned.fill(
-                  child: _cacheImageBytes != null
+                  child: imageBytes != null
                       ? Image.memory(
-                          _cacheImageBytes!,
+                          imageBytes,
                           fit: BoxFit.cover,
                           gaplessPlayback: true,
                         )
@@ -170,8 +148,8 @@ class _MusicPlayerWidgetState extends State<MusicPlayerWidget> {
                     children: [
                       // Song Info at the Top
                       _TrackInfo(
-                        name: widget.trackName,
-                        artist: widget.artistName,
+                        name: info.title,
+                        artist: info.artist,
                         theme: localTheme,
                       ),
                       
@@ -180,10 +158,9 @@ class _MusicPlayerWidgetState extends State<MusicPlayerWidget> {
                       // Progress Bar
                       MusicProgressSlider(
                         theme: theme,
-                        duration: widget.duration.toDouble(),
-                        position: widget.position.toDouble(),
-                        status: widget.status,
-                        client: widget.client,
+                        duration: info.duration.toDouble(),
+                        position: info.position.toDouble(),
+                        status: info.status,
                       ),
                       
                       const SizedBox(height: 12),
@@ -195,7 +172,7 @@ class _MusicPlayerWidgetState extends State<MusicPlayerWidget> {
                           // Previous Button
                           IconButton(
                             onPressed: () {
-                              _musicControls.previous();
+                              sendControls.sendPrev();
                             },
                             icon: const Icon(Icons.skip_previous_rounded, size: 26),
                             style: IconButton.styleFrom(
@@ -210,11 +187,11 @@ class _MusicPlayerWidgetState extends State<MusicPlayerWidget> {
                           // Primary Play/Pause Button
                           IconButton.filled(
                             onPressed: () {
-                              _musicControls.playpause();
+                              sendControls.sendPlayPause();
                             },
                             iconSize: 40,
                             icon: Icon(
-                              widget.status == 'Playing' ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                              info.status == 'Playing' ? Icons.pause_rounded : Icons.play_arrow_rounded,
                             ),
                             style: IconButton.styleFrom(
                               backgroundColor: localTheme.primary,
@@ -228,7 +205,7 @@ class _MusicPlayerWidgetState extends State<MusicPlayerWidget> {
                           // Next Button
                           IconButton(
                             onPressed: () {
-                              _musicControls.next();
+                              sendControls.sendNext();
                             },
                             icon: const Icon(Icons.skip_next_rounded, size: 26),
                             style: IconButton.styleFrom(
@@ -296,12 +273,11 @@ class _TrackInfo extends StatelessWidget {
 
 // ---------------------------     Progress Slider     ---------------------------------------------
 
-class MusicProgressSlider extends StatefulWidget {
+class MusicProgressSlider extends ConsumerStatefulWidget {
   final ColorScheme theme;
   final double duration;
   final double position;
   final String status;
-  final SocketServer? client;
 
   const MusicProgressSlider({
     super.key,
@@ -309,14 +285,13 @@ class MusicProgressSlider extends StatefulWidget {
     required this.duration,
     required this.position,
     required this.status,
-    this.client,
   });
 
   @override
-  State<MusicProgressSlider> createState() => _MusicProgressSliderState();
+  ConsumerState<MusicProgressSlider> createState() => _MusicProgressSliderState();
 }
 
-class _MusicProgressSliderState extends State<MusicProgressSlider> 
+class _MusicProgressSliderState extends ConsumerState<MusicProgressSlider> 
   with TickerProviderStateMixin {
   double? _dragValue;
   late double _localPosition;
@@ -378,15 +353,14 @@ class _MusicProgressSliderState extends State<MusicProgressSlider>
 
   @override
   Widget build(BuildContext context) {
+    final sendControl = ref.watch(mediaSenderProvider);
     double progress = widget.duration != 0 ? _localPosition / widget.duration : 0.0;
     
     return GestureDetector(
       onHorizontalDragUpdate: (d) => setState(() => _dragValue = (d.localPosition.dx / context.size!.width).clamp(0.0, 1.0)),
       onHorizontalDragEnd: (d) {
-        if (_dragValue != null && widget.client != null) {
-          
-          _musicControls.seek((_dragValue! * widget.duration).toInt());
-
+        if (_dragValue != null) {
+          sendControl.sendSeek((_dragValue! * widget.duration).toInt());
           setState(() => _localPosition = _dragValue! * widget.duration);
         }
         setState(() => _dragValue = null);
@@ -467,5 +441,3 @@ class SquigglePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant SquigglePainter oldDelegate) => true;
 }
-
-// -----------------------------------------------------------------------------------------------------

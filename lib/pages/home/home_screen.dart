@@ -1,46 +1,41 @@
 import 'package:flutter/material.dart';
-import 'dart:io';
-import '../../services/socket_server.dart';
-import '../../services/pairing_service.dart';
-import '../../services/file_transfer.dart';
-import '../../core/globals.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:laptop_controller/core/network/domain/i_connection_manager.dart';
+import 'package:laptop_controller/core/network/provider/connection_provider.dart';
+import 'package:laptop_controller/features/file_transfer/provider/file_transfer_provider.dart';
+import 'package:laptop_controller/pages/home/widgets/battery_card.dart';
+import 'package:laptop_controller/pages/home/widgets/music_player.dart';
+import 'package:laptop_controller/pages/home/widgets/notifications.dart';
+import 'package:laptop_controller/pages/home/widgets/volume_card.dart';
+import 'package:laptop_controller/pages/pairing_screen/pairing_screen.dart';
 import '../../models/dashboard_item.dart';
-import '../../models/media_metadata.dart';
 import '../../theme/app_theme.dart';
 import 'widgets/connection_status.dart';
 import 'widgets/quick_actions.dart';
-import 'widgets/info_cards.dart';
-import 'widgets/music_player.dart';
 import 'widgets/sidebar.dart';
 import 'widgets/clipboard.dart';
-import 'widgets/notifications.dart';
-import '../../services/Music/mpris_service.dart';
 
-class HomeScreen extends StatefulWidget {
+final _connectionStatusStreamProvider =
+  StreamProvider<ConnectionStatus>((ref) {
+    final connectionManager = ref.watch(connectionManagerProvider);
+    return connectionManager.connectionStatusStream;
+  });
+
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
-
-  final int _port = 9999;
-
-  // All services used
-  late final PairingService _pairingService;
-  late final SocketServer client;
-
-  static const double _padding = AppTheme.padding;
-  static const double _spacing = AppTheme.spacing;
-
+class _HomeScreenState extends ConsumerState<HomeScreen> {
   late final List<DashboardItem> _items = [
     DashboardItem(
       label: 'Send Files',
       icon: Icons.file_copy,
       onTap: () async {
-        final transfer = FileTransfer();
-        await transfer.transferFile();
+        final fileTransferService = ref.read(fileTransferServiceProvider);
+        fileTransferService.sendFile();
       },
     ),
     DashboardItem(
@@ -51,107 +46,13 @@ class _HomeScreenState extends State<HomeScreen> {
     DashboardItem(
       label: 'Ring Device',
       icon: Icons.speaker_phone,
-      onTap: () async {
-        final svc = MprisService.instance;
-        
-        svc.updateMetadata(
-          MediaMetadata(
-            title: "Test Track - Debug",
-            artist: "SyncOS Developer",
-            album: "Debugging Album",
-            status: "Playing",
-            position: 30,  // 30 seconds (updateMetadata converts to µs internally)
-            duration: 200, // 200 seconds
-            albumArt: "",
-            volume: 0.8,
-          ),
-        );
-        
-        debugPrint("[Debug] Metadata update signal sent to D-Bus");
-      },
+      onTap: () async {},
     ),
   ];
 
-  String _localIP = 'Loading...';
-  bool _isInitializing = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _pairingService = PairingService(port: _port);
-    client = SocketServer(pairingService: _pairingService);
-    client.onPairingRequested = _showPairingConfirmationDialog;
-    _initialize();
-  }
-
-  Future<bool> _showPairingConfirmationDialog(String clientAddress) async {
-    if (!mounted) return false;
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Incoming Pairing Request'),
-          content: Text('A device at $clientAddress is trying to connect. Do you want to allow pairing?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Reject'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Confirm'),
-            ),
-          ],
-        );
-      },
-    );
-
-    return confirmed ?? false;
-  }
-
-  Future<void> _initialize() async {
-    await _getLocalIP();
-    await _pairingService.initialize();
-    setState(() {
-      _isInitializing = false;
-    });
-  }
-
-  Future<void> _getLocalIP() async {
-    try {
-      final interfaces = await NetworkInterface.list();
-      for (var interface in interfaces) {
-        for (var addr in interface.addresses) {
-          if (addr.type == InternetAddressType.IPv4 && !addr.isLoopback) {
-            _localIP = addr.address;
-            return;
-          }
-        }
-      }
-      _localIP = 'No IP found';
-    } catch (e) {
-      _localIP = 'Error: $e';
-    }
-  }
-
-  Future<void> _handleStartServer() async {
-    debugPrint("Starting server on port $_port...");
-    await client.startServer(_port);
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
-    if (_isInitializing) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
+    final connectionStatusAsync = ref.watch(_connectionStatusStreamProvider);
 
     return GestureDetector(
       onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
@@ -162,145 +63,79 @@ class _HomeScreenState extends State<HomeScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Sidebar(),
+
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.all(_padding),
-                  child: ValueListenableBuilder<bool>(
-                      valueListenable: client.connectionStatus,
-                      builder: (context, isConnected, child) {
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch, 
-                          mainAxisAlignment: MainAxisAlignment.start,
-                          children: [
-                            if(isConnected) ...[
-                              StatusConnected(
-                                client: client,
-                                deviceName: processor.deviceName,
-                              ),
-                              const SizedBox(height: _spacing),
-                              Expanded(
-                                child: ValueListenableBuilder<int>(
-                                  valueListenable: client.connectedClients,
-                                  builder: (context, clientCount, child) {
-                                    if (clientCount > 0) {
-                                      return LayoutBuilder(
-                                        builder: (context, constraints) {
+                  padding: const EdgeInsets.all(AppTheme.padding),
+                  child: connectionStatusAsync.when(
+                    loading: () => const StatusNotConnected(),
+                    error: (error, stackTrace) => const StatusNotConnected(), 
+                    data: (connectionStatus) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch, 
+                        mainAxisAlignment: MainAxisAlignment.start,
+                        children: [
+                          if (connectionStatus == ConnectionStatus.connected) ...[
+                            StatusConnected(),
+                            const SizedBox(height: AppTheme.spacing),
 
-                                          final bool isSmallScreen = constraints.maxWidth <= 1000;
+                            Expanded(
+                              child: LayoutBuilder(
+                                builder: (context, constraints) {
+                                  final bool isSmallScreen = constraints.maxWidth <= 1000;
 
-                                          return Row(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Expanded(
-                                                flex: isSmallScreen ? 3 : 1,
-                                                child: Column(
-                                                  children: [
-                                                    // battery and volume cards
-                                                    infoCardsRow(
-                                                      batteryLevelNotifier: processor.batteryLevel,
-                                                      isChargingNotifier: processor.isCharging,
-                                                      volumeNotifier: processor.volume, 
-                                                      context: context,
-                                                      onVolumeChanged: (val) {
-                                                      },
-                                                    ),
-                                                    const SizedBox(height: _spacing),
-                                          
-                                                    // Quick actions
-                                                    DashboardGrid(items: _items),
-                                                    const SizedBox(height: _spacing),
-                                          
-                                                    // Clipboard history
-                                                    Expanded(child: Clipboard()),
-                                          
-                                                  ]
-                                                ) 
+                                  return Row(
+                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                    children: [
+                                      Expanded(
+                                        flex: isSmallScreen ? 3 : 1,
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                                          children: [
+                                            IntrinsicHeight(
+                                              child: Row(
+                                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                                children: const [
+                                                  Expanded(child: BatteryCard()),
+                                                  SizedBox(width: AppTheme.spacing),
+                                                  Expanded(child: VolumeCard()),
+                                                ],
                                               ),
-                                          
-                                              const SizedBox(width: _spacing),
-                                          
-                                              isSmallScreen ? 
+                                            ),
+                                            const SizedBox(height: AppTheme.spacing),
+                                      
+                                            // Quick actions dashboard
+                                            DashboardGrid(items: _items),
+                                            const SizedBox(height: AppTheme.spacing),
+                                  
+                                            Expanded(
+                                              child: const Clipboard(),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
 
-                                              Expanded(
-                                                flex: 2, // Shrinks proportionally with the left column when window space is tight
-                                                child: Column(
-                                                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                                                  children: [
-                                                    ValueListenableBuilder<MediaMetadata>(
-                                                      valueListenable: processor.metadata, 
-                                                      builder: (context, info, child) {
-                                                        return MusicPlayerWidget(
-                                                          imagePath: info.albumArt, 
-                                                          trackName: info.title, 
-                                                          artistName: info.artist, 
-                                                          position: info.position, 
-                                                          duration: info.duration, 
-                                                          status: info.status, 
-                                                          albumArtBase64: info.albumArt,
-                                                          client: client,
-                                                        );
-                                                      }
-                                                    ),
-                                                    const SizedBox(height: _spacing),
-                                                    const Expanded(child: Notifications()),
-                                                  ],
-                                                ),
-                                              ) 
-                                              
-                                              :
-                                              
-                                              SizedBox(
-                                                width: 400,
-                                                child: Column(
-                                                  children: [
-                                                    ValueListenableBuilder<MediaMetadata>(
-                                                      valueListenable: processor.metadata, 
-                                                      builder: (context, info, child) {
-                                                        return MusicPlayerWidget(
-                                                          imagePath: info.albumArt, 
-                                                          trackName: info.title, 
-                                                          artistName: info.artist, 
-                                                          position: info.position, 
-                                                          duration: info.duration, 
-                                                          status: info.status, 
-                                                          albumArtBase64: info.albumArt,
-                                                          client: client,
-                                                        );
-                                                      }
-                                                    ),
-                                                
-                                                    const SizedBox(height: _spacing),
-                                                
-                                                    Expanded(child: Notifications())
-                                                  ],
-                                                ),
-                                              )
-                                            ],
-                                          );
-                                        }
-                                      );
-                                    } else {
-                                      return QrCodeCard(
-                                        localIP: _localIP,
-                                        port: _port,
-                                        pairingService: _pairingService,
-                                      );
-                                    }
-                                  },
-                                ),
+                                      const SizedBox(width: AppTheme.spacing),
+
+                                      isSmallScreen 
+                                        ? Expanded(flex: 2, child: _buildMainContent())
+                                        : SizedBox(width: 400, child: _buildMainContent()),
+                                    ],
+                                  );
+                                },
                               ),
-                            ] else  
-                              StatusNotConnected(
-                                localIP: _localIP, 
-                                port: _port, 
-                                onStartServer: _handleStartServer
-                              ),
-                          ],
-                        );
-                      },
-                    ),
+                            ),
+                          ] else if (connectionStatus == ConnectionStatus.active) ...[
+                            const Expanded(child: StatusNotConnected()),
+                          ] else if (connectionStatus == ConnectionStatus.inactive) ...[
+                            const Expanded(child: PairingScreen()),
+                          ]
+                        ],
+                      );
+                    },
                   ),
                 ),
+              ),
             ],
           ),
         ),
@@ -308,4 +143,14 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Widget _buildMainContent() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: const [
+        MusicPlayerWidget(),
+        SizedBox(height: AppTheme.spacing),
+        Expanded(child: Notifications()),
+      ],
+    );
+  }
 }

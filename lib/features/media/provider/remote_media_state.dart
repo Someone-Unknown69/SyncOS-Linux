@@ -1,20 +1,50 @@
+import 'package:laptop_controller/core/media/provider/media_notification_provider.dart';
+import 'package:laptop_controller/core/network/provider/connection_provider.dart';
 import 'package:laptop_controller/models/media_metadata.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:flutter/foundation.dart';
 
 part 'remote_media_state.g.dart';
 
 @Riverpod(keepAlive: true)
 class MusicNotifier extends _$MusicNotifier {
-  @override
-  MediaInfo build() => MediaInfo.empty;
+  bool _isMediaNotificationInitialized = false;
 
-  void updateMetadata(Map<String, dynamic> data) {
+  @override
+  MediaInfo build() {
+    ref.onDispose(() {
+      _isMediaNotificationInitialized = false;
+    });
+    return MediaInfo.empty;
+  }
+
+  void updateMetadata(Map<String, dynamic> data) async {
+    if (!_isMediaNotificationInitialized) {
+      _isMediaNotificationInitialized = true;
+      try {
+        final mediaNotification = await ref.read(mediaNotificationProvider.future);
+        await mediaNotification.init();
+      } catch (e) {
+        _isMediaNotificationInitialized = false;
+        debugPrint('[MusicNotifier] Media notification Initialization failed: $e');
+      }
+    }
+
     final newTitle = data['title'] ?? 'Unknown';
     final oldTitle = state.title;
+    final newStatus = data['status'] ?? 'Unknown';
 
-    // Dirty cache
+    // If both the title and the playback status are unknown or stopped, reset
+    if (newTitle == 'Unknown' && (newStatus == 'Stopped' || newStatus == 'Unknown' || oldTitle == 'Unknown')) {
+      state = MediaInfo.empty;
+      if (_isMediaNotificationInitialized) {
+        ref.read(mediaNotificationProvider).value?.reset();
+      }
+      return;
+    }
+
     if (newTitle == 'Unknown' && oldTitle != 'Unknown') {
-      String newStatus = state.status;
+      String currentStatus = data['status'] ?? state.status;
 
       final int newPosition = (data['position'] ?? data['currentPosition'] ?? state.position) is int 
           ? (data['position'] ?? data['currentPosition'] ?? state.position) as int 
@@ -25,21 +55,33 @@ class MusicNotifier extends _$MusicNotifier {
           : state.duration;
 
       state = state.copyWith(
-        status: newStatus,
+        status: currentStatus,
         position: newPosition,
         duration: newDuration,
         albumArtBase64: data['albumArt'] ?? data['albumArtBase64'] ?? state.albumArtBase64,
       );
-      return;
+    } else {
+      var newInfo = MediaInfo.fromMap(data);
+      
+      if (newInfo.albumArtBase64 == 'N/A' && state.albumArtBase64 != 'N/A' && state.albumArtBase64.isNotEmpty) {
+        newInfo = newInfo.copyWith(albumArtBase64: state.albumArtBase64);
+      }
+      
+      state = newInfo;
     }
 
-    var newInfo = MediaInfo.fromMap(data);
-    
-    // Retain previous album art if the new one is missing
-    if (newInfo.albumArtBase64 == 'N/A' && state.albumArtBase64 != 'N/A' && state.albumArtBase64.isNotEmpty) {
-      newInfo = newInfo.copyWith(albumArtBase64: state.albumArtBase64);
+    if (_isMediaNotificationInitialized) {
+      ref.read(mediaNotificationProvider).value?.updateMetadata(state);
     }
-    
-    state = newInfo;
   }
+
+
+  void sendControlCommand(Map<String, dynamic> args) {
+    ref.read(connectionManagerProvider).send('music', 'control', args);
+  }
+
+  void togglePlayPause() => sendControlCommand({'method': 'play_pause'});
+  void next() => sendControlCommand({'method': 'next'});
+  void previous() => sendControlCommand({'method': 'previous'});
+  void seek(int position) => sendControlCommand({'method': 'seek', 'position': position});
 }
