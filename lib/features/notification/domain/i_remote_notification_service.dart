@@ -5,7 +5,7 @@ abstract class IRemoteNotificationService {
   // Streams the notification changes for ui to listen and update
   Stream<void> get onNotificationChange;
 
-  Future<void> saveNotification(AppNotification notification);
+  Future<void> saveNotification(Map<String, dynamic> args);
   Future<void> removeNotification(String notificationId);
 
   // retrives current cache of notifications from query

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:laptop_controller/features/gamepad/domain/i_controller_service.dart';
 import 'package:laptop_controller/features/media/data/local_media_sender.dart';
 import 'package:laptop_controller/features/media/provider/remote_media_state.dart';
+import 'package:laptop_controller/features/notification/domain/i_remote_notification_service.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import 'package:laptop_controller/core/network/domain/i_connection_manager.dart';
@@ -17,6 +18,7 @@ class CommandDispatcher {
   final LocalMediaSender _mediaSender;
   final FileTransferService _fileTransferService;
   final IControllerService _controllerService;
+  final IRemoteNotificationService _remoteNotificationService;
 
   StreamSubscription<String>? _rawMessageSubscription;
   bool _isStarted = false;
@@ -27,6 +29,7 @@ class CommandDispatcher {
     this._mediaSender,
     this._fileTransferService,
     this._controllerService,
+    this._remoteNotificationService,
   );
 
   void start() {
@@ -78,6 +81,11 @@ class CommandDispatcher {
             _controllerService.updateDpad(args['x'], args['y']);
           } else {
             _controllerService.keyPress(action, args['button']);
+          }
+        case 'notification':
+          if(action == 'receive') {
+            debugPrint("This shi works");
+            _remoteNotificationService.saveNotification(args);
           }
       }
     });

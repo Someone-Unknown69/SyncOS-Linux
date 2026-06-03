@@ -37,7 +37,8 @@ class RemoteNotificationServiceImpl implements IRemoteNotificationService {
   }
 
   @override
-  Future<void> saveNotification(AppNotification notification) async {
+  Future<void> saveNotification(Map<String, dynamic> args) async {
+    final notification = AppNotification.fromMap(args);
     final currentList = await _getStoredList();
 
     // Prevent duplicate entries if the exact notification payload arrives twice

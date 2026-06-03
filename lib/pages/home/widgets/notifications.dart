@@ -202,7 +202,7 @@ class NotificationsState extends ConsumerState<Notifications> {
                       expiresAt: DateTime.now().add(const Duration(hours: 1)),
                       colorValue: 0xFF0A192F,
                       actions: const [],
-                    ),
+                    ).toMap(),
                   );
                 },
                 icon: const Icon(Icons.arrow_circle_right_rounded),
