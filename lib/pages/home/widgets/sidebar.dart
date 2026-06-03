@@ -73,8 +73,6 @@ class _SidebarState extends State<Sidebar> {
               return Column(
                 children: [
                 _sidebarTile(Icons.dashboard, "Dashboard", 0, colorScheme),
-                _sidebarTile(Icons.terminal, "Configure Commands", 1, colorScheme),
-                _sidebarTile(Icons.notifications, "Notifications", 2, colorScheme),
                 _sidebarTile(Icons.settings, "Settings", 3, colorScheme),
                 ],
               );

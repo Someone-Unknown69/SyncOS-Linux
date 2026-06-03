@@ -11,6 +11,9 @@ import '../../../core/notification/domain/i_notification_service.dart';
 // RecieveFile acts as an entry point for incoming metadata, 
 // Verifys the final checksum against the source. 
 
+// there is no response system so the sending notification will be broken (will fix that later)
+// TODO : Fix the sending updates via acknowledgement system
+
 class FileTransferService {
   final IConnectionManager _channel;
   final IFileService _fileService;
@@ -78,6 +81,8 @@ class FileTransferService {
         
         final now = DateTime.now().millisecondsSinceEpoch;
 
+        debugPrint("[FTP] Updated progress : $sentSize / $fileSize");
+
         if(now - lastNotificationTime >= notificationThrottleMs) {
           final int progress = ((sentSize / fileSize) * 100).round();
 
@@ -91,11 +96,14 @@ class FileTransferService {
 
           lastNotificationTime = now;
         }
-
       }
 
       await sink.close();
-      await _notificationService.dismissNotification(_notifId);
+      await _notificationService.showNotification(
+        id: _notifId, 
+        title: 'File Transfer',
+        body: '$fileName Successfully Sent'
+      );
     } on TimeoutException{
       debugPrint('[FTP] Error: Connection timed out. Receiver did not connect.');
       _handleTransferError('Receiver did not respond in time');
@@ -122,6 +130,12 @@ class FileTransferService {
     final fileName = metadata['fileName'];
     final expectedChecksum = metadata['checksum'];
     final fileSize = metadata['fileSize'];
+
+    await _notificationService.showNotification(
+      id: _notifId, 
+      title: 'File Transfer',
+      body: 'Receiving : $fileName',
+    );
 
 
     final directoryPath = await _fileService.getExternalStoragePath();
@@ -171,7 +185,12 @@ class FileTransferService {
     final actualChecksum = await _fileService.calculateChecksum(file.path);
     if (actualChecksum == expectedChecksum) {
       debugPrint("[FTP] Transfer Successful: Checksum Matches");
-      await _notificationService.dismissNotification(_notifId);
+      await _notificationService.showNotification(
+        id: _notifId, 
+        title: 'File Transfer',
+        body: '$fileName Received Successfully',
+      );
+
     } else {
       debugPrint("[FTP] Transfer Failed: Checksum Mismatch!");
       await file.delete(); // Delete corrupted file
