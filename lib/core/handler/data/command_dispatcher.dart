@@ -71,6 +71,8 @@ class CommandDispatcher {
         case 'controller':
           if(action == 'start') {
             _controllerService.init();
+          } else if (action == 'stop') {
+            _controllerService.dispose();
           } else if (action == 'left_analog') {
             _controllerService.updateLeftStick(args['x'], args['y']);
           } else if (action == 'right_analog') {

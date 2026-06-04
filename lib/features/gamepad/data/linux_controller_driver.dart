@@ -26,7 +26,7 @@ sealed class UInputUserSetup extends Struct {
 
 
 class LinuxControllerDriver implements IControllerService{
-  late int fd; // File Descriptor
+  int fd = -1; // File Descriptor
   final libc = DynamicLibrary.open('libc.so.6'); // linux C library
 
   // Kernel Constants 
@@ -82,11 +82,18 @@ class LinuxControllerDriver implements IControllerService{
 
   @override
   void init() {
+    if (fd != -1) {
+      debugPrint("[Gamepad] Device already initialized (fd: $fd). Skipping init");
+      return;
+    }
+
     fd = _open('/dev/uinput'.toNativeUtf8(), 6); // O_WRONLY (2) | O_NONBLOCK (4)
+
     if (fd < 0) {
       debugPrint("[Gamepad] Error: Could not open /dev/uinput, Ensure root permissions");
       return;
     }
+
 
     // Inform the kernel about virtual keyboard
     _ioctl(fd, 0x40045564, EV_KEY); // UI_SET_EVBIT -> EV_KEY
@@ -252,6 +259,7 @@ class LinuxControllerDriver implements IControllerService{
     debugPrint("Virtual keyboard disposed successfully");
     _ioctl(fd, 0x5502, 0); // UI_DEV_DESTROY: Tell kernel to remove the device
     _close(fd);            // Close the file handle
+    fd = -1;
   }
 
   void _configureAxis(int axis, int min, int max, int fuzz, int flat) {
