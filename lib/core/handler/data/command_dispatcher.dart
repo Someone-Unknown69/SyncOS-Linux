@@ -86,7 +86,6 @@ class CommandDispatcher {
           }
         case 'notification':
           if(action == 'receive') {
-            debugPrint("This shi works");
             _remoteNotificationService.saveNotification(args);
           }
       }
