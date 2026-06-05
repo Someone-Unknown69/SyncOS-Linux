@@ -1,17 +1,17 @@
 import 'dart:async';
-import 'package:laptop_controller/core/media/domain/i_local_media_info.dart';
 import 'package:laptop_controller/core/network/domain/connection_config.dart';
 import 'package:laptop_controller/core/network/domain/i_connection_manager.dart';
 import 'package:laptop_controller/core/storage/data/storage_service.dart';
 import 'package:laptop_controller/features/battery/domain/i_local_battery_sender.dart';
 import 'package:laptop_controller/core/handler/data/command_dispatcher.dart';
 import 'package:flutter/foundation.dart';
+import 'package:laptop_controller/features/media/data/local_media_sender.dart';
 import 'package:laptop_controller/features/pairing/domain/i_pairing_service.dart';
 
 class ServiceCoordinator {
   final IConnectionManager _connectionManager;
   final IBatteryMonitorService _batteryMonitorService;
-  final ILocalMediaInfo _mediaService;
+  final LocalMediaSender _mediaService;
   final CommandDispatcher _commandDispatcher;
   final StorageService _storageService;
   final IPairingService _pairingService;
@@ -21,7 +21,7 @@ class ServiceCoordinator {
   ServiceCoordinator({
     required IConnectionManager connectionManager,
     required IBatteryMonitorService batteryMonitorService,
-    required ILocalMediaInfo mediaService,
+    required LocalMediaSender mediaService,
     required CommandDispatcher commandDispatcher,
     required StorageService storageService,
     required IPairingService pairingService,
@@ -69,7 +69,7 @@ class ServiceCoordinator {
 
   void _stopServices() {
     _batteryMonitorService.stop();
-    _mediaService.dispose();
+    _mediaService.stop();
     _commandDispatcher.stop();
   }
 

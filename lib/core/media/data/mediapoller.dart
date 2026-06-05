@@ -204,6 +204,7 @@ class MediaPoller implements ILocalMediaInfo{
       // Send Updates to metadata stream
       if (!newInfo.isSameAs(_lastInfo) || isNewArt) {
         _lastInfo = newInfo;
+        debugPrint("ADDED SHIT from Poller instance: ${identityHashCode(this)}");
         _metadataController.add(newInfo);
       }
 
@@ -284,7 +285,7 @@ class MediaPoller implements ILocalMediaInfo{
   }
 
   @override
-  void dispose() {
+  void stop() {
     for (var sub in _subscriptions) {
       sub.cancel();
     }
@@ -295,6 +296,11 @@ class MediaPoller implements ILocalMediaInfo{
     _client = null;
     _lastInfo = null;
     _activePlayerName = null;
+  }
+
+  @override
+  void dispose() {
+    stop();
     _metadataController.close();
   }
 

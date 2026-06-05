@@ -7,6 +7,8 @@ abstract class ILocalMediaInfo {
 
   Future<void> start();
 
+  void stop();
+
   void dispose();
 
   void control(Map<String, dynamic> args);
