@@ -8,6 +8,10 @@ import 'package:image/image.dart' as img;
 import 'package:laptop_controller/core/media/domain/i_local_media_info.dart';
 import 'package:laptop_controller/models/media_metadata.dart';
 
+
+// TODO : REMOVE THE CACHING MECHANISM FROM HERE, IT IS MANAGED IN UPPER LAYER
+
+
 class MediaPoller implements ILocalMediaInfo{
   DBusClient? _client;
   final Map<String, DBusRemoteObject> _players = {};
@@ -204,7 +208,6 @@ class MediaPoller implements ILocalMediaInfo{
       // Send Updates to metadata stream
       if (!newInfo.isSameAs(_lastInfo) || isNewArt) {
         _lastInfo = newInfo;
-        debugPrint("ADDED SHIT from Poller instance: ${identityHashCode(this)}");
         _metadataController.add(newInfo);
       }
 
