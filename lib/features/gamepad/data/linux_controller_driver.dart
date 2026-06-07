@@ -218,7 +218,9 @@ class LinuxControllerDriver implements IControllerService{
   }
   
   @override
-  void updateLeftStick(double x, double y) {
+  void updateLeftStick(Map<String, dynamic> args) {
+    double x = (args['x'] as num).toDouble();
+    double y = (args['x'] as num).toDouble();
     // Convert -1.0 -> 1.0 down to integer ranges -128 -> 127
     int rawX = (x * 32767).round().clamp(-32768, 32767);
     int rawY = (-y * 32767).round().clamp(-32768, 32767);
