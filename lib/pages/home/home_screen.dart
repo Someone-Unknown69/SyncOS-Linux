@@ -12,7 +12,6 @@ import '../../models/dashboard_item.dart';
 import '../../theme/app_theme.dart';
 import 'widgets/connection_status.dart';
 import 'widgets/quick_actions.dart';
-import 'widgets/sidebar.dart';
 import 'widgets/clipboard.dart';
 
 final _connectionStatusStreamProvider =
@@ -58,86 +57,82 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
       behavior: HitTestBehavior.translucent, 
       child: Scaffold(
-        body: SafeArea(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Sidebar(),
-
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(AppTheme.padding),
-                  child: connectionStatusAsync.when(
-                    loading: () => const StatusNotConnected(),
-                    error: (error, stackTrace) => const StatusNotConnected(), 
-                    data: (connectionStatus) {
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch, 
-                        mainAxisAlignment: MainAxisAlignment.start,
-                        children: [
-                          if (connectionStatus == ConnectionStatus.connected) ...[
-                            StatusConnected(),
-                            const SizedBox(height: AppTheme.spacing),
-
-                            Expanded(
-                              child: LayoutBuilder(
-                                builder: (context, constraints) {
-                                  final bool isSmallScreen = constraints.maxWidth <= 1000;
-
-                                  return Row(
-                                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                                    children: [
-                                      Expanded(
-                                        flex: isSmallScreen ? 3 : 1,
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                                          children: [
-                                            IntrinsicHeight(
-                                              child: Row(
-                                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                                children: const [
-                                                  Expanded(child: BatteryCard()),
-                                                  SizedBox(width: AppTheme.spacing),
-                                                  Expanded(child: VolumeCard()),
-                                                ],
-                                              ),
+        body: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(AppTheme.padding),
+                child: connectionStatusAsync.when(
+                  loading: () => const StatusNotConnected(),
+                  error: (error, stackTrace) => const StatusNotConnected(), 
+                  data: (connectionStatus) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch, 
+                      mainAxisAlignment: MainAxisAlignment.start,
+                      children: [
+                        if (connectionStatus == ConnectionStatus.connected) ...[
+                          StatusConnected(),
+                          const SizedBox(height: AppTheme.spacing),
+        
+                          Expanded(
+                            child: LayoutBuilder(
+                              builder: (context, constraints) {
+                                final bool isSmallScreen = constraints.maxWidth <= 1000;
+        
+                                return Row(
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
+                                    Expanded(
+                                      flex: isSmallScreen ? 3 : 1,
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                                        children: [
+                                          IntrinsicHeight(
+                                            child: Row(
+                                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                                              children: const [
+                                                Expanded(child: BatteryCard()),
+                                                SizedBox(width: AppTheme.spacing),
+                                                Expanded(child: VolumeCard()),
+                                              ],
                                             ),
-                                            const SizedBox(height: AppTheme.spacing),
-                                      
-                                            // Quick actions dashboard
-                                            DashboardGrid(items: _items),
-                                            const SizedBox(height: AppTheme.spacing),
-                                  
-                                            Expanded(
-                                              child: const Clipboard(),
-                                            ),
-                                          ],
-                                        ),
+                                          ),
+                                          const SizedBox(height: AppTheme.spacing),
+                                    
+                                          // Quick actions dashboard
+                                          DashboardGrid(items: _items),
+                                          const SizedBox(height: AppTheme.spacing),
+                                
+                                          Expanded(
+                                            child: const Clipboard(),
+                                          ),
+                                        ],
                                       ),
-
-                                      const SizedBox(width: AppTheme.spacing),
-
-                                      isSmallScreen 
-                                        ? Expanded(flex: 2, child: _buildMainContent())
-                                        : SizedBox(width: 400, child: _buildMainContent()),
-                                    ],
-                                  );
-                                },
-                              ),
+                                    ),
+        
+                                    const SizedBox(width: AppTheme.spacing),
+        
+                                    isSmallScreen 
+                                      ? Expanded(flex: 2, child: _buildMainContent())
+                                      : SizedBox(width: 400, child: _buildMainContent()),
+                                  ],
+                                );
+                              },
                             ),
-                          ] else if (connectionStatus == ConnectionStatus.active) ...[
-                            const Expanded(child: StatusNotConnected()),
-                          ] else if (connectionStatus == ConnectionStatus.inactive) ...[
-                            const Expanded(child: PairingScreen()),
-                          ]
-                        ],
-                      );
-                    },
-                  ),
+                          ),
+                        ] else if (connectionStatus == ConnectionStatus.active) ...[
+                          const Expanded(child: StatusNotConnected()),
+                        ] else if (connectionStatus == ConnectionStatus.inactive) ...[
+                          const Expanded(child: PairingScreen()),
+                        ]
+                      ],
+                    );
+                  },
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

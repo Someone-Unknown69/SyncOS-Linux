@@ -26,18 +26,19 @@ class Clipboard extends StatelessWidget {
             children: [
               Row(
                 mainAxisSize: MainAxisSize.min,
-                children: const [
+                children: [
                   Icon(
                     Icons.paste_rounded,
-                    color: Colors.white,
+                    color: colorScheme.onSurfaceVariant,
                     size: 20.0,
                   ),
                   SizedBox(width: AppTheme.spacing),
                   Text(
                     'Clipboard',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: colorScheme.onSurfaceVariant,
                       fontSize: 14.0,
+                      fontWeight: FontWeight(500)
                     ),
                   ),
                 ],

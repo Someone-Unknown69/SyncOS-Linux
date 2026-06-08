@@ -22,7 +22,8 @@ class VolumeCard extends ConsumerWidget {
       child: Row(
         children: [
           _buildIconWell(
-            child: const Icon(Icons.volume_up, color: Colors.white70, size: 24),
+            child: Icon(Icons.volume_up, color: colorScheme.onSurface, size: 24),
+            colorScheme : colorScheme,
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -30,10 +31,10 @@ class VolumeCard extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Text("Volume", style: TextStyle(color: Colors.white54, fontSize: 13)),
+                Text("Volume", style: TextStyle(color: colorScheme.onSurface, fontSize: 13)),
                 Text(
                   "${(dummyVolume * 100).toInt()}%",
-                  style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
+                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
                 ),
                 const SizedBox(height: 8),
                 SliderTheme(
@@ -61,12 +62,12 @@ class VolumeCard extends ConsumerWidget {
     );
   }
 
-  Widget _buildIconWell({required Widget child}) {
+  Widget _buildIconWell({required Widget child, ColorScheme? colorScheme}) {
     return Container(
       width: 54,
       height: 54,
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.03),
+        color: colorScheme!.surfaceContainerHigh,
         shape: BoxShape.circle,
       ),
       child: Center(child: child),

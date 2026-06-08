@@ -141,16 +141,16 @@ class NotificationsState extends ConsumerState<Notifications> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(
+                Icon(
                   Icons.notifications_active_rounded,
-                  color: Colors.white,
+                  color: colorScheme.onSurfaceVariant,
                   size: 20.0,
                 ),
                 SizedBox(width: spacing),
-                const Text(
+                Text(
                   'Notifications',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: colorScheme.onSurfaceVariant,
                     fontSize: 14.0,
                   ),
                 ),
@@ -198,10 +198,10 @@ class NotificationsState extends ConsumerState<Notifications> {
                       valueListenable: _isEmptyNotifier,
                       builder: (context, value, child) {
                         if (!value) return const SizedBox.shrink();
-                        return const Center(
+                        return Center(
                           child: Text(
                             "No Notifications",
-                            style: TextStyle(color: Colors.white),
+                            style: TextStyle(color: colorScheme.onSurfaceVariant),
                           ),
                         );
                       },

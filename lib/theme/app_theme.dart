@@ -18,11 +18,11 @@ class AppTheme {
 }
 
 // Theme config
-ThemeData buildTheme(Brightness brightness) {
+ThemeData buildTheme(Brightness brightness, Color seedColor) {
   final baseTheme = ThemeData(
     useMaterial3: true,
     brightness: brightness,
-    colorSchemeSeed: AppTheme.seedColor,
+    colorSchemeSeed: seedColor,
   );
 
   return baseTheme.copyWith(

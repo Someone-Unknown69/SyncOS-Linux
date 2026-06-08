@@ -41,7 +41,7 @@ final class MusicNotifierProvider
   }
 }
 
-String _$musicNotifierHash() => r'8b1aedf9acfd0bc77c1f6b2dd3c6905b6edb5da5';
+String _$musicNotifierHash() => r'9053235dd6fda7e9f0b2492c2dbeaa46a83024a4';
 
 abstract class _$MusicNotifier extends $Notifier<MediaInfo> {
   MediaInfo build();

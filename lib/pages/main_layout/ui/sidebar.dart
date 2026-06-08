@@ -1,7 +1,14 @@
 import 'package:flutter/material.dart';
 
 class Sidebar extends StatefulWidget{
-  const Sidebar({super.key});
+  final ValueChanged<int> onItemSelected;
+  final int selectedIndex;
+
+  const Sidebar({
+    super.key, 
+    required this.onItemSelected,
+    required this.selectedIndex,
+  });
 
   @override
   State<Sidebar> createState() => _SidebarState();
@@ -9,7 +16,6 @@ class Sidebar extends StatefulWidget{
 
 class _SidebarState extends State<Sidebar> {
   bool _isExpanded = true;
-  final ValueNotifier<int> _selectedIndex = ValueNotifier<int>(0);
 
   @override
   Widget build(BuildContext context) {
@@ -67,16 +73,11 @@ class _SidebarState extends State<Sidebar> {
 
           
           // --- NAVIGATION ITEMS ---
-          ValueListenableBuilder(
-            valueListenable: _selectedIndex,
-            builder: (context, value, child) {
-              return Column(
-                children: [
-                _sidebarTile(Icons.dashboard, "Dashboard", 0, colorScheme),
-                _sidebarTile(Icons.settings, "Settings", 3, colorScheme),
-                ],
-              );
-            }
+          Column(
+            children: [
+            _sidebarTile(Icons.dashboard, "Dashboard", 0, colorScheme),
+            _sidebarTile(Icons.settings, "Settings", 1, colorScheme),
+            ],
           ),
 
           const Spacer(),
@@ -106,13 +107,14 @@ class _SidebarState extends State<Sidebar> {
     int index, 
     ColorScheme colorScheme,
   ) {
-    final bool selected = _selectedIndex.value == index;
+    final bool selected = widget.selectedIndex == index;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       child: InkWell(
         onTap: () {
-          _selectedIndex.value = index;
+          widget.onItemSelected(index);
+          
         },
         borderRadius: BorderRadius.circular(28),
         hoverColor: colorScheme.onSecondary,

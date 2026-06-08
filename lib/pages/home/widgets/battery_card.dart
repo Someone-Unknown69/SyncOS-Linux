@@ -32,7 +32,8 @@ class BatteryCard extends ConsumerWidget {
               return Row(
                 children: [
                   _buildIconWell(
-                    child: _VerticalBattery(level: state.level, color: colorScheme.onPrimaryContainer),
+                    child: _VerticalBattery(level: state.level, color: batteryColor),
+                    colorScheme: colorScheme,
                   ),
                   const SizedBox(width: 16),
 
@@ -40,9 +41,9 @@ class BatteryCard extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Text("Battery", style: TextStyle(color: Colors.white54, fontSize: 13)),
+                      Text("Battery", style: TextStyle(color: colorScheme.onSurface, fontSize: 13)),
                       Text("${(state.level).toInt()}%",
-                          style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white)),
+                          style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
                       if (state.isCharging)
                         Padding(
                           padding: const EdgeInsets.only(top: 4.0),
@@ -65,12 +66,12 @@ class BatteryCard extends ConsumerWidget {
   }
 }
 
-Widget _buildIconWell({required Widget child}) {
+Widget _buildIconWell({required Widget child, ColorScheme? colorScheme}) {
   return Container(
     width: 54,
     height: 54,
     decoration: BoxDecoration(
-      color: Colors.white.withValues(alpha: 0.03),
+      color: colorScheme!.surfaceContainerHigh,
       shape: BoxShape.circle,
     ),
     child: Center(child: child),
