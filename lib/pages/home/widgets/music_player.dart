@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:laptop_controller/features/media/provider/local_media_sender_provider.dart';
 import 'package:laptop_controller/features/media/provider/remote_media_state.dart';
 import 'dart:convert';
 import 'dart:typed_data';
@@ -75,7 +74,7 @@ class _MusicPlayerWidgetState extends ConsumerState<MusicPlayerWidget> {
   @override
   Widget build(BuildContext context) {
     final info = ref.watch(musicProvider);
-    final sendControls = ref.watch(mediaSenderProvider);
+    final controls = ref.watch(musicProvider.notifier);
 
     if (info.albumArtBase64 != _lastImagePath) {
       _lastImagePath = info.albumArtBase64;
@@ -172,7 +171,7 @@ class _MusicPlayerWidgetState extends ConsumerState<MusicPlayerWidget> {
                           // Previous Button
                           IconButton(
                             onPressed: () {
-                              sendControls.sendPrev();
+                              controls.previous();
                             },
                             icon: const Icon(Icons.skip_previous_rounded, size: 26),
                             style: IconButton.styleFrom(
@@ -187,7 +186,7 @@ class _MusicPlayerWidgetState extends ConsumerState<MusicPlayerWidget> {
                           // Primary Play/Pause Button
                           IconButton.filled(
                             onPressed: () {
-                              sendControls.sendPlayPause();
+                              controls.togglePlayPause();
                             },
                             iconSize: 40,
                             icon: Icon(
@@ -205,7 +204,7 @@ class _MusicPlayerWidgetState extends ConsumerState<MusicPlayerWidget> {
                           // Next Button
                           IconButton(
                             onPressed: () {
-                              sendControls.sendNext();
+                              controls.next();
                             },
                             icon: const Icon(Icons.skip_next_rounded, size: 26),
                             style: IconButton.styleFrom(
@@ -353,14 +352,14 @@ class _MusicProgressSliderState extends ConsumerState<MusicProgressSlider>
 
   @override
   Widget build(BuildContext context) {
-    final sendControl = ref.watch(mediaSenderProvider);
+    final sendControl = ref.watch(musicProvider.notifier);
     double progress = widget.duration != 0 ? _localPosition / widget.duration : 0.0;
     
     return GestureDetector(
       onHorizontalDragUpdate: (d) => setState(() => _dragValue = (d.localPosition.dx / context.size!.width).clamp(0.0, 1.0)),
       onHorizontalDragEnd: (d) {
         if (_dragValue != null) {
-          sendControl.sendSeek((_dragValue! * widget.duration).toInt());
+          sendControl.seek((_dragValue! * widget.duration).toInt());
           setState(() => _localPosition = _dragValue! * widget.duration);
         }
         setState(() => _dragValue = null);

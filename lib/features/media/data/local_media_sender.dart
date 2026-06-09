@@ -29,11 +29,10 @@ class LocalMediaSender {
   );
 
   Future<void> start() async {
-    debugPrint("Subscription started. Listening to Poller instance: ${identityHashCode(_localMediaInfo)}");
+    debugPrint("Subscription started. Listening to Poller");
     await _subscription?.cancel();
 
     _subscription = _localMediaInfo.metadataStream.listen((info) {
-      // Add a great caching system here
       _processMap(info.toMap());
     });
 
@@ -141,30 +140,5 @@ class LocalMediaSender {
   void dispose() {
     stop();
     _localMediaInfo.dispose();
-  }
-
-  // TODO : Add a global stream for these
-
-  void sendPlayPause() {
-    _connectionManager.send('music', 'control', {'method' : 'play_pause'});
-  }
-
-  void sendNext() {
-    _connectionManager.send('music', 'control', {'method': 'next'});
-  }
-
-  void sendPrev() {
-    _connectionManager.send('music', 'control', {'method': 'previous'});
-  }
-
-  void sendSeek(int position) {
-    _connectionManager.send(
-      "music",
-      "control",
-      {
-        "method": 'seek',
-        "position": position,
-      },
-    );
   }
 }

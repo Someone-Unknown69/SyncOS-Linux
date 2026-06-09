@@ -5,16 +5,24 @@ import 'package:laptop_controller/core/storage/data/storage_service.dart';
 import 'package:laptop_controller/features/battery/domain/i_local_battery_sender.dart';
 import 'package:laptop_controller/core/handler/data/command_dispatcher.dart';
 import 'package:flutter/foundation.dart';
+import 'package:laptop_controller/features/clipboard/data/local_clipboard_sender.dart';
 import 'package:laptop_controller/features/media/data/local_media_sender.dart';
 import 'package:laptop_controller/features/pairing/domain/i_pairing_service.dart';
 
 class ServiceCoordinator {
+  final CommandDispatcher _commandDispatcher;
+  
+  // network managers
   final IConnectionManager _connectionManager;
+  final IPairingService _pairingService;
+
+  // storage related
+  final StorageService _storageService;
+  
+  // services 
   final IBatteryMonitorService _batteryMonitorService;
   final LocalMediaSender _mediaService;
-  final CommandDispatcher _commandDispatcher;
-  final StorageService _storageService;
-  final IPairingService _pairingService;
+  final LocalClipboardSender _clipboardSender;
 
   StreamSubscription? _connectionSubscription;
 
@@ -25,11 +33,13 @@ class ServiceCoordinator {
     required CommandDispatcher commandDispatcher,
     required StorageService storageService,
     required IPairingService pairingService,
+    required LocalClipboardSender clipboardService,
   })  : _commandDispatcher = commandDispatcher,
         _connectionManager = connectionManager,
         _batteryMonitorService = batteryMonitorService,
         _mediaService = mediaService,
         _storageService = storageService,
+        _clipboardSender = clipboardService,
         _pairingService = pairingService {
     _init();
   }
@@ -65,12 +75,14 @@ class ServiceCoordinator {
     await _batteryMonitorService.start();
     await _mediaService.start();
     _commandDispatcher.start();
+    _clipboardSender.start();
   }
 
   void _stopServices() {
     _batteryMonitorService.stop();
     _mediaService.stop();
     _commandDispatcher.stop();
+    _clipboardSender.stop();
   }
 
   void dispose() {

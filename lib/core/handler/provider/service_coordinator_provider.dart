@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:laptop_controller/core/network/provider/connection_provider.dart';
 import 'package:laptop_controller/core/storage/provider/storage_service_provider.dart';
 import 'package:laptop_controller/features/battery/provider/local_battery_sender_provider.dart';
+import 'package:laptop_controller/features/clipboard/provider/local_clipboard_sender_provider.dart';
 import 'package:laptop_controller/features/media/provider/local_media_sender_provider.dart';
 import 'package:laptop_controller/features/pairing/provider/pairing_provider.dart';
 import '../data/service_coordinator.dart';
@@ -14,6 +15,7 @@ final serviceCoordinatorProvider = Provider<ServiceCoordinator>((ref) {
   final commandDispatcher = ref.watch(commandDispatcherProvider);
   final storageService = ref.watch(storageServiceProvider);
   final pairingService = ref.watch(pairingProvider);
+  final clipboardService = ref.watch(localClipboardSenderProvider);
 
   final coordinator = ServiceCoordinator(
     connectionManager: connectionManager,
@@ -22,6 +24,7 @@ final serviceCoordinatorProvider = Provider<ServiceCoordinator>((ref) {
     commandDispatcher: commandDispatcher,
     storageService: storageService,
     pairingService: pairingService,
+    clipboardService: clipboardService,
   );
 
   ref.onDispose(() => coordinator.dispose());
