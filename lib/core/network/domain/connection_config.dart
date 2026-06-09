@@ -23,16 +23,18 @@ class TcpConfig extends ConnectionConfig {
   String get type => 'tcp';
 
   final int port;
+  final String ip;
 
   int get getPort => port;
 
-  TcpConfig({required this.port});
+  TcpConfig({required this.port, required this.ip});
 
   @override
-  Map<String, dynamic> toJson() => {'type': type, 'port': port};
+  Map<String, dynamic> toJson() => {'type': type, 'port': port, 'ip':ip};
 
   factory TcpConfig.fromJson(Map<String, dynamic> json) => TcpConfig(
         port: json['port'] ?? 8080,
+        ip: json['ip'] ?? '0.0.0.0',
       );
 }
 

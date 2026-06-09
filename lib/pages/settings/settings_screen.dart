@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:laptop_controller/pages/components/base_page.dart';
 import 'package:laptop_controller/pages/components/settings_tile.dart';
 import 'package:laptop_controller/pages/settings/widgets/color_picker.dart';
-import 'package:laptop_controller/theme/app_theme.dart';
+import 'package:laptop_controller/pages/settings/widgets/connection_details.dart';
 import 'package:laptop_controller/theme/provider/theme_provider.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -13,52 +14,47 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+
   @override
   Widget build(BuildContext context){
     final theme = Theme.of(context);
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
-      body: ListView(
-        padding: const EdgeInsets.all(AppTheme.padding),
-        children: [
-          // TODO : Add a connected device info section here
+    return BasePage(
+      title: 'Settings', 
+      showBackButton: false,
+      children: [
+        buildSectionHeader(context, 'Connection Details'),
+        ConnectionDetailsCard(),
 
-          buildSectionHeader(context, 'Preferences'),
-
-          buildSettingsTile(
-            icon: Icons.dark_mode_rounded,
-            title: 'Theme Mode',
-            subtitle: 'Switch between light and dark mode',
-            trailing: Switch(
-              value: theme.brightness == Brightness.dark,
-              onChanged: (bool value) {
-                ref.read(themeProvider.notifier).updateThemeMode(
-                  value ? ThemeMode.dark : ThemeMode.light
-                );
-              },
-            ),
+        buildSectionHeader(context, 'Preferences'),
+        buildSettingsTile(
+          icon: Icons.dark_mode_rounded,
+          title: 'Theme Mode',
+          subtitle: 'Switch between light and dark mode',
+          trailing: Switch(
+            value: theme.brightness == Brightness.dark,
+            onChanged: (bool value) {
+              ref.read(themeProvider.notifier).updateThemeMode(
+                value ? ThemeMode.dark : ThemeMode.light
+              );
+            },
           ),
+        ),
 
+        buildSettingsTile(
+          icon: Icons.color_lens_rounded,
+          title: 'App Theme',
+          subtitle: 'Select your preferred accent color',
+          onTap: () => _showColorPicker(context, ref),
+        ),
 
-
-          buildSettingsTile(
-            icon: Icons.color_lens_rounded,
-            title: 'App Theme',
-            subtitle: 'Select your preferred accent color',
-            onTap: () => _showColorPicker(context, ref),
-          ),
-
-          const SizedBox(height: AppTheme.spacing),
-
-          buildSectionHeader(context, "Info"),
-          buildSettingsTile(
-            icon: Icons.info_outline, 
-            title: "SyncOS Desktop",
-            subtitle: 'Version 1.0.0',
-          ),
-        ],
-      ),
+        buildSectionHeader(context, "Info"),
+        buildSettingsTile(
+          icon: Icons.info_outline, 
+          title: "SyncOS Desktop",
+          subtitle: 'Version 1.0.0',
+        ),
+      ]
     );
   }
 

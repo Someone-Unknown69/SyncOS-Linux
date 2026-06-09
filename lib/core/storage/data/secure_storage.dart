@@ -1,5 +1,5 @@
 import 'dart:convert';
-
+import 'package:flutter/foundation.dart';
 import 'package:laptop_controller/core/storage/domain/i_storage_service.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -8,44 +8,46 @@ class SecureStorage implements IStorageService{
 
   @override
   Future<void> write<T>(String key, T value) async {
-    if (value is String) {
-      await _storage.write(key: key, value: value);
-    } else if (value is int || value is bool || value is double) {
-      await _storage.write(key: key, value: value.toString());
-    } else {
-      final String jsonString = jsonEncode(value);
-      await _storage.write(key: key, value: jsonString);
+    try {
+      String valueToStore;
+      if (value is String) {
+        valueToStore = value;
+      } else if (value is int || value is bool || value is double) {
+        valueToStore = value.toString();
+      } else {
+        valueToStore = jsonEncode(value);
+      }
+      
+      await _storage.write(key: key, value: valueToStore);
+    } catch (e) {
+      debugPrint("[SecureStorage] FATAL ERROR WRITING key '$key': $e");
     }
   }
 
   @override
-  Future<T?> read<T>(String key) async {
+Future<T?> read<T>(String key) async {
+  try {
     final String? rawValue = await _storage.read(key: key);
     if (rawValue == null) return null;
 
-    if (T == String) {
-      return rawValue as T?;
-    }
+    if (T == String) return rawValue as T?;
+    if (T == int) return int.tryParse(rawValue) as T?;
+    if (T == bool) return (rawValue == 'true') as T?;
+    if (T == double) return double.tryParse(rawValue) as T?;
 
-    if (T == int) {
-      return int.tryParse(rawValue) as T?;
-    }
-    if (T == bool) {
-      if (rawValue == 'true') return true as T;
-      if (rawValue == 'false') return false as T;
-      return null;
-    }
-    if (T == double) {
-      return double.tryParse(rawValue) as T?;
-    }
-
-    try {
+    final trimmed = rawValue.trim();
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
       final decodedData = jsonDecode(rawValue);
       return decodedData as T?;
-    } catch (_) {
-      return null;
     }
+    
+    return rawValue as T?;
+  } catch (e, stack) {
+    debugPrint("[SecureStorage] ERROR READING key '$key': $e");
+    debugPrint("[SecureStorage] Stack trace $stack");
+    return null;
   }
+}
 
 
   @override

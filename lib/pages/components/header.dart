@@ -24,10 +24,10 @@ class PageHeader extends StatelessWidget {
           Text(
             title,
             style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
+              fontSize: 30,
+              fontWeight: FontWeight.w500,
               color: theme.colorScheme.primary,
-              letterSpacing: -0.5,
+              letterSpacing: 0.2,
             ),
           ),
         ],

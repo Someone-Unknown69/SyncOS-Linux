@@ -1,8 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
+import 'package:crypto/crypto.dart';
+import 'package:flutter/material.dart';
 import 'package:laptop_controller/core/storage/data/storage_service.dart';
+import 'package:laptop_controller/main.dart';
+import 'package:laptop_controller/pages/components/popup_dialog.dart';
 
 import '../domain/i_connection_manager.dart';
 import '../domain/connection_config.dart';
@@ -14,27 +19,58 @@ class SocketConnectionManager implements IConnectionManager{
   SocketConnectionManager(this._storage);
 
   ServerSocket? _server;
+  Socket? _client;
+  Socket? _pendingSocket;
 	
   final _messageController = StreamController<String>.broadcast();
   final _statusController = StreamController<ConnectionStatus>.broadcast();
+  final _clientConfigController = StreamController<ConnectionConfig?>.broadcast();
+  final _serverConfigController = StreamController<ConnectionConfig?>.broadcast();
   
   final BytesBuilder _buffer = BytesBuilder();
-
-  Socket? _client;
-  Socket? _pendingSocket;
 	bool _isDisconnecting = false;
 
-  // Connection metadata + pairing callback
-  final _connectedClientsController = StreamController<int>.broadcast();
-  Stream<int> get connectedClientsStream => _connectedClientsController.stream;
+  Timer? _broadcastTimer;
+  RawDatagramSocket? _udpSocket;
+  final int _discoveryPort = 6767;
+  final int _defaultPort = 9999;
+  
+  String _token = "";
 
-  final _pendingClientIPController = StreamController<String?>.broadcast();
-  Stream<String?> get pendingClientIPStream => _pendingClientIPController.stream;
 
-  Future<bool> Function(String clientAddress)? onPairingRequested;
+  // TODO : Remove this and add a notification for confirmation
+  Future<bool> showPairingDialog(String ip) async {
+    final context = navigatorKey.currentContext;
+    
+    if (context == null) return false; 
+    final completer = Completer<bool>();
+
+    await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AppPopupDialog(
+        title: 'Accept Connection',
+        subtitle: 'Device at $ip is requesting to pair.',
+        primaryButtonLabel: 'Accept',
+        onPrimaryPressed: () {
+          Navigator.pop(context); 
+          completer.complete(true); 
+        },
+        secondaryButtonLabel: 'Reject',
+        onSecondaryPressed: () {
+          Navigator.pop(context); 
+          completer.complete(false);
+        },
+      ),
+    );
+
+    return completer.future;
+  }
+
 
   ConnectionStatus _status = ConnectionStatus.inactive;
-  ConnectionConfig? _currentConfig;
+  ConnectionConfig? _serverConfig;
+  ConnectionConfig? _clientConfig;
 
   // ---------------------------------    Getters    -------------------------------------------- 
   
@@ -42,10 +78,24 @@ class SocketConnectionManager implements IConnectionManager{
   ConnectionStatus get status => _status;
 
   @override
-  ConnectionConfig? get activeConfig => _currentConfig;
+  ConnectionConfig? get activeConfig => _serverConfig;
+
+  ConnectionConfig? get clientConfig => _clientConfig;
+
+  // ---------------------------------    Streams    -------------------------------------------- 
+
+  Stream<ConnectionConfig?> get clientConfigStream => _clientConfigController.stream;
+  
+  @override 
+  Stream<String> get rawMessageStream => _messageController.stream;
 
   @override
-  Stream<String> get rawMessageStream => _messageController.stream;
+  Stream<ConnectionConfig?> get serverConfigStream =>
+      Stream<ConnectionConfig?>.multi((controller) {
+    controller.add(_serverConfig);
+    final sub = _serverConfigController.stream.listen((c) => controller.add(c));
+    controller.onCancel = () => sub.cancel();
+  });
 
 	@override
   Stream<ConnectionStatus> get connectionStatusStream =>
@@ -58,23 +108,151 @@ class SocketConnectionManager implements IConnectionManager{
 
   // -----------------------------    Public interface      -------------------------------------
 
+  // Common entrypoint either by auto connect or pair
   @override
-  Future<void> startServer (ConnectionConfig config) async {
-    if (config is TcpConfig) {
-      if (_status == ConnectionStatus.active || _status == ConnectionStatus.connected) return;
-      
-      _currentConfig = config;
+  Future<void> startServer () async {
+    // build config here as , and we will keep updatinng config in auto connect and start pairing loops 
+    //if we need to. that config will be stored in storage and ui will listen to server config to display
+    // the pairing token will also be generated here and stored on startPairingMode()
+    final tcpConfig = await _buildConfig();
+    _serverConfig = tcpConfig;
+    _serverConfigController.add(_serverConfig);
 
-      // Mark server as active
-      _status = ConnectionStatus.active;
-      _statusController.add(_status);
-
-      debugPrint('[Socket] Starting server at port : ${config.port}');
-
-      await _start(config.port);
-    } else {
-      throw UnsupportedError("This manager only supports TCP connections");
+    if(_serverConfig is! TcpConfig) {
+      throw UnsupportedError("Mismatched config protocol");
     }
+
+    debugPrint('[Socket] Starting server at port : ${tcpConfig.port}');
+
+    bool isPaired = await _storage.isPaired;
+    // If we are yet to be paired start the pairing broadcast
+    if(isPaired) {
+      startAutoConnectionBroadcast();
+    } else {
+      startPairingMode();
+    }
+
+    // we start the tcp socket to listen in parallel
+    await _start(tcpConfig.port);
+  }
+
+
+  void startAutoConnectionBroadcast() async {
+    _stopConnectionBroadcast();
+
+    final token = await _storage.getPairingToken();
+    if (token == null || token.isEmpty) {
+      debugPrint('[AutoConnect Broadcast] No pairing token found. Skipping autoconnect');
+      return;
+    }
+
+    try {
+      _udpSocket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
+      _udpSocket?.broadcastEnabled = true;
+
+      debugPrint('[AutoConnect Broadcast] Broadcasting autoconnect for paired devices');
+
+      _broadcastTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
+        if (_udpSocket == null || _serverConfig is! TcpConfig) return;
+
+        final tcpConfig = _serverConfig as TcpConfig;
+        final String timestamp = (DateTime.now().millisecondsSinceEpoch ~/ 1000).toString();
+        final liveIP = await _getCurrentLocalIp() ?? '0.0.0.0';
+
+        if (liveIP != tcpConfig.ip) {
+          debugPrint('[Auto Connect] Network migration New IP: $liveIP');
+          _serverConfig = TcpConfig(ip: liveIP, port: tcpConfig.port);
+          _serverConfigController.add(_serverConfig);
+        }
+
+        // signature computation using the pairing token
+        final keyBytes = utf8.encode(token);
+        final messageBytes = utf8.encode(timestamp);
+        final hmac = Hmac(sha256, keyBytes);
+        final signature = hmac.convert(messageBytes).toString();
+
+        final Map<String, dynamic> payload = {
+          "service": "SyncOS-server",
+          "timestamp": timestamp,
+          "signature": signature,
+          "config": {
+            "ip": liveIP,
+            "port": tcpConfig.port,
+            "type": 'tcp',
+          }
+        };
+
+        final data = utf8.encode(jsonEncode(payload));
+        
+        // Broadcast to the standard local subnet broadcast address
+        _udpSocket?.send(
+          data, 
+          InternetAddress('255.255.255.255'), 
+          _discoveryPort,
+        );
+      });
+    } catch (e) {
+      debugPrint('[AutoConnect Broadcast] Failed to initialize socket: $e');
+    }
+  }
+
+  void startPairingMode() async {
+    try {
+      await generateAndSavePairingToken();
+
+      _udpSocket ??= await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
+      _udpSocket?.broadcastEnabled = true;
+
+      debugPrint('[Pairing Broadcast] Pairing Mode Active, Visible to all new devices.');
+
+      _broadcastTimer = Timer.periodic(const Duration(seconds: 2), (timer) async {
+        if (_udpSocket == null || _serverConfig is! TcpConfig) return;
+
+        final tcpConfig = _serverConfig as TcpConfig;
+        final liveIp = await _getCurrentLocalIp() ?? tcpConfig.ip;
+
+        if (liveIp != tcpConfig.ip) {
+          debugPrint('[Pairing Broadcast] Network migration, New IP: $liveIp');
+          _serverConfig = TcpConfig(ip: liveIp, port: tcpConfig.port);
+          _serverConfigController.add(_serverConfig);
+        }
+
+        final Map<String, dynamic> payload = {
+          "service": "SyncOS-server",
+          "status": "pairing_mode",
+          "deviceName" : "Laptop",
+          "config": {
+            "type": 'tcp',
+            "ip": liveIp,
+            "port": tcpConfig.port
+          }
+        };
+
+        final data = utf8.encode(jsonEncode(payload));
+        _udpSocket?.send(data, InternetAddress('255.255.255.255'), _discoveryPort);
+      });
+    } catch (e) {
+      debugPrint('[Pairing Broadcast] Failed to start pairing mode beacon: $e');
+    }
+  }
+
+  Future<void> generateAndSavePairingToken() async {
+    final random = Random.secure();
+    final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+    final token = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+
+    debugPrint('[Pairing Broadcast] New secure pairing token generated: $token');
+
+    _token =  token;
+  }
+
+  void stopPairingMode() => _stopConnectionBroadcast();
+
+  void _stopConnectionBroadcast() {
+    _broadcastTimer?.cancel();
+    _broadcastTimer = null;
+    _udpSocket?.close();
+    _udpSocket = null;
   }
 	
 	@override
@@ -91,25 +269,37 @@ class SocketConnectionManager implements IConnectionManager{
 
     _client = _pendingSocket;
     _pendingSocket = null;
-    _pendingClientIPController.add(null);
-    _connectedClientsController.add(1);
+
+    // set client config
+    _clientConfig = TcpConfig(
+      ip: _client!.remoteAddress.address, 
+      port: _client!.remotePort
+    );
+
+    _clientConfigController.add(_clientConfig);
 
     // the connection is fully accepted/authenticated
     _status = ConnectionStatus.connected;
     _statusController.add(_status);
 
     Map<String, dynamic> args = {};
-    if(op == 'auth') {
-      args['token'] = await _storage.getPairingToken();
+    if(op == 'pair') {
+      args['token'] = _token;
+      await _storage.setPairingToken(_token);
+
+      final saved = await _storage.getPairingToken();
+      debugPrint('[Accept] Verification: Disk read back token: $saved');
+      
+      if (saved == null) {
+        debugPrint('[Accept] CRITICAL: Token failed to save to disk!');
+      }
     }
 
     try {
-      send(op, 'accepted', args);
-      if(op == 'auth') {
-        debugPrint('[Authentication] Accepted sent');
-      } else if (op == 'pair') {
-        debugPrint('[Pairing] Accepted sent');
-      }
+      debugPrint('[Accept] sending accept with $args');
+      final payload = jsonEncode({"op": op, "action": "accepted", "args": args});
+      _sendRaw(payload, compress: false);
+      debugPrint('[$op] Accepted sent');
     } catch (e) {
       debugPrint('[Accept] Handshake failed: $e');
     }
@@ -119,50 +309,41 @@ class SocketConnectionManager implements IConnectionManager{
 	@override
 	Future<void> rejectConnection(String op) async {
     if (_pendingSocket != null) {
-    
-    try {
-      send(op, 'rejected', {});
-      if(op == 'auth') {
-        debugPrint('[Authentication] Rejected sent');
-      } else if (op == 'pair') {
-        debugPrint('[Pairing] Rejected sent');
+      try {
+        send(op, 'rejected', {});
+        debugPrint('[$op] Rejected sent');
+      } catch (e) {
+        debugPrint('[Reject] Handshake failed: $e');
       }
-    } catch (e) {
-      debugPrint('[Reject] Handshake failed: $e');
-    }
+
       _pendingSocket!.destroy();
       _pendingSocket = null;
-      _pendingClientIPController.add(null);
     }
   }
 
-  // Public alias used by provider disposal
   Future<void> disconnect() async {
     await stopServer();
-    // close controllers to release resources
-    try {
-      await _connectedClientsController.close();
-    } catch (_) {}
-    try {
-      await _pendingClientIPController.close();
-    } catch (_) {}
-    try {
-      await _messageController.close();
-    } catch (_) {}
-    try {
-      await _statusController.close();
-    } catch (_) {}
+    try { await _serverConfigController.close(); } catch (_) {}
+    try { await _clientConfigController.close(); } catch (_) {}
+    try { await _messageController.close(); } catch (_) {}
+    try { await _statusController.close(); } catch (_) {}
   }
 
 	// Method to send requests to client
 	@override
   void send(String op, String action, Map<String, dynamic> args) {
-		if (_client == null) return;
 		final payload = jsonEncode({"op": op, "action": action, "args": args});
 		_sendRaw(payload);
   }
 
 	/// ---------------------------     Core Implementation    ------------------------------------
+  
+  Future<TcpConfig> _buildConfig() async {
+    final liveIp = await _getCurrentLocalIp() ?? '127.0.0.1';
+    int defaultPort = _defaultPort;
+    
+    return TcpConfig(ip: liveIp, port: defaultPort);
+  }
 
 	Future<void> _start(int port) async {
 		_server = await ServerSocket.bind(InternetAddress.anyIPv4 , port);
@@ -180,8 +361,6 @@ class SocketConnectionManager implements IConnectionManager{
 				return;
 			}
       _pendingSocket = socket;
-      _pendingClientIPController.add(socket.remoteAddress.address);
-			
 			_buffer.clear();
 			_setupSocketListeners(socket);
 
@@ -221,7 +400,6 @@ class SocketConnectionManager implements IConnectionManager{
       onDone: () {
         if (socket == _pendingSocket) {
           _pendingSocket = null;
-          _pendingClientIPController.add(null);
         } else if (socket == _client) {
           _handleDisconnect();
         }
@@ -229,7 +407,6 @@ class SocketConnectionManager implements IConnectionManager{
       onError: (e) {
         if (socket == _pendingSocket) {
           _pendingSocket = null;
-          _pendingClientIPController.add(null);
         } else if (socket == _client) {
           _handleDisconnect();
         }
@@ -242,9 +419,7 @@ class SocketConnectionManager implements IConnectionManager{
     try {
       if (command == "PING") {
         debugPrint('Received : $command');
-        if (command == "PING") {
-          _sendRaw("PONG");
-        }
+        _sendRaw("PONG");
         return;
       }
 
@@ -254,9 +429,8 @@ class SocketConnectionManager implements IConnectionManager{
         final args = data['args'];
         final token = await _storage.getPairingToken();
         
-        debugPrint('[Authentication] Auth token : ${data['args']} & $token from authenticated client.');
+        debugPrint('[Authentication] Method : ${data['op']}, Auth token : ${data['args']} & $token from authenticated client.');
         if (data['op'] == 'auth') {
-          
           if(args['token'] == token) {
             debugPrint('[Authentication] Auto-accepting connection from authenticated client.');
             acceptConnection('auth');
@@ -267,21 +441,15 @@ class SocketConnectionManager implements IConnectionManager{
           }
 
         } else if (data['op'] == 'pair') {
+          debugPrint('[Pairing] UI confirmation required...');
+
+          // Await the user's decision from the UI
+          final confirmed = await showPairingDialog(_pendingSocket!.remoteAddress.address);
           
-          if (onPairingRequested != null) {
-            debugPrint('[Pairing] UI confirmation required...');
-            
-            // Await the user's decision from the UI
-            final confirmed = await onPairingRequested!(_pendingSocket!.remoteAddress.address);
-            
-            if (confirmed) {
-              // Logic to generate/retrieve token from _pairingService
-              acceptConnection('pair'); // This sends the 'accepted' + token
-            } else {
-              rejectConnection('pair');
-            }
+          if (confirmed) {
+            // Logic to generate/retrieve token from _pairingService
+            acceptConnection('pair'); // This sends the 'accepted' + token
           } else {
-            // If no UI listener, reject for safety
             rejectConnection('pair');
           }
         } else {
@@ -290,48 +458,109 @@ class SocketConnectionManager implements IConnectionManager{
         }
         return;
       }
+
+      if(data['op'] == 'unpair') {
+        await _clearConnectionInfo();
+        await _clearConnectionInfo();
+  
+        _client?.destroy();
+        _client = null;
+        
+        _stopConnectionBroadcast();
+        startPairingMode();
+        debugPrint('[Socket] Remote device unpaired');
+      }
+
 			if(_status == ConnectionStatus.connected) {
 				_messageController.add(command);
 			}
       return;
     } catch (e) {
-      debugPrint("[Handle] Error in handling Command $e");
+      debugPrint("[Server] Error in handling Command $e");
     }
   }
 
-	void _sendRaw(String data) {
-  	if (_client == null && _pendingSocket == null) return;
-  	try {
-      final socket = _client ?? _pendingSocket!;
-      final rawBytes = utf8.encode(data);
+	// Update this signature and implementation
+  void _sendRaw(String msg, {bool compress = true}) {
+    try {
+      final rawBytes = utf8.encode(msg);
+      
+      final List<int> payload = compress ? gzip.encode(rawBytes) : rawBytes;
 
-      final compressedBytes = gzip.encode(rawBytes);
-      final lengthBytes = ByteData(4)..setUint32(0, compressedBytes.length, Endian.big);
-
+      final lengthBytes = ByteData(4)..setUint32(0, payload.length, Endian.big);
+      
+      final socket = _client ?? _pendingSocket!; 
+      
       socket.add(lengthBytes.buffer.asUint8List());
-      socket.add(compressedBytes);
+      socket.add(payload);
     } catch (e) {
-      debugPrint('[Send] Send raw error: $e');
+      debugPrint('[Server/Client] Send raw error: $e');
     }
   }
 
 	// Kill the server and close
   Future<void> _handleDisconnect() async {
-    // apparently the client.destory() also calls this, so i have to add a variable barrier
-    if (_isDisconnecting == true) return; // Ignore if we are already closing
-		_isDisconnecting = true;
+    if (_isDisconnecting == true) return; 
+    _isDisconnecting = true;
 
     try {
       _client?.destroy();
       _client = null;
       _buffer.clear();
-      _connectedClientsController.add(0);
+
+      _clientConfig = null;
+      _clientConfigController.add(null);
+
+      bool isPaired = await _storage.isPaired;
+      if (isPaired) {
+        startAutoConnectionBroadcast();
+      } else {
+        startPairingMode(); 
+      }
 
     } finally {
-			_status = ConnectionStatus.inactive;
-			_statusController.add((_status));
+      _status = ConnectionStatus.active;
+      _statusController.add((_status));
       _isDisconnecting = false; 
     }
+  }
+
+  Future<void> _clearConnectionInfo() async {
+    try {
+      // TODO : setup client config and Clear here
+      await _storage.clearPairingToken();
+
+      debugPrint('[Socket] Paired device Info cleared successfully');
+    } catch (e) {
+      debugPrint('[Socket] Error while clearing connection info of unpaired device');
+    }
+  }
+
+  Future<String?> _getCurrentLocalIp() async {
+    try {
+      final interfaces = await NetworkInterface.list(
+        type: InternetAddressType.IPv4,
+        includeLinkLocal: false,
+        includeLoopback: false,
+      );
+
+      for (var interface in interfaces) {
+        if (interface.name.toLowerCase().contains('wlan') || 
+            interface.name.toLowerCase().contains('wifi') ||
+            interface.name.toLowerCase().contains('en') ||
+            interface.name.toLowerCase().contains('eth')) {
+          if (interface.addresses.isNotEmpty) {
+            return interface.addresses.first.address;
+          }
+        }
+      }
+      if (interfaces.isNotEmpty && interfaces.first.addresses.isNotEmpty) {
+        return interfaces.first.addresses.first.address;
+      }
+    } catch (e) {
+      debugPrint('[Server] Error resolving local IP: $e');
+    }
+    return null;
   }
 
 }

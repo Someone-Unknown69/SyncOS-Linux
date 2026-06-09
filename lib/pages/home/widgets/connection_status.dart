@@ -8,34 +8,114 @@ final syncedDeviceTextProvider = FutureProvider<String>((ref) async {
   return "Synced With : Kartik";
 });
 
+
 class StatusNotConnected extends ConsumerWidget {
-  const StatusNotConnected({
-    super.key,
-  });
+  const StatusNotConnected({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-
-    // TODO : Redesign this to a beautiful interface
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return Card(
       elevation: 0,
+      color: colorScheme.surfaceContainerLow,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppTheme.borderRadius),
       ),
       child: Padding(
-        padding: EdgeInsets.all(AppTheme.padding),
+        padding: const EdgeInsets.symmetric(
+          vertical: AppTheme.padding * 1.5,
+          horizontal: AppTheme.padding,
+        ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            const Text(
-              "Device Not Connected",
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: colorScheme.errorContainer.withValues(alpha: 0.2),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.phonelink_off_rounded,
+                size: 48,
+                color: colorScheme.error,
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Headline
+            Text(
+              "Device Disconnected",
+              textAlign: TextAlign.center,
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: colorScheme.onSurface,
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            Text(
+              "Linked Device is not available",
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.8),
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Elegant Divider
+            Divider(color: colorScheme.outlineVariant.withValues(alpha: 0.3)),
+            const SizedBox(height: 16),
+
+            // Quick Checklist items
+            _buildChecklistItem(
+              context,
+              icon: Icons.power_rounded,
+              text: "Make sure your phone is turned on",
+            ),
+            const SizedBox(height: 12),
+            _buildChecklistItem(
+              context,
+              icon: Icons.sync_disabled_rounded,
+              text: "Verify the SyncOS companion app is open on your mobile device",
+            ),
+            const SizedBox(height: 12),
+            _buildChecklistItem(
+              context,
+              icon: Icons.wifi_rounded,
+              text: "Ensure both devices are linked to the exact same Wi-Fi network",
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildChecklistItem(BuildContext context, {required IconData icon, required String text}) {
+    final theme = Theme.of(context);
+    
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          icon,
+          size: 18,
+          color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            text,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              height: 1.3,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

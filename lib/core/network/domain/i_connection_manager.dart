@@ -9,17 +9,17 @@ enum ConnectionStatus {
 }
 
 abstract class IConnectionManager {
-
   // streams
   Stream<String> get rawMessageStream;
   Stream<ConnectionStatus> get connectionStatusStream;
+  Stream<ConnectionConfig?> get serverConfigStream;
 
   // status
   ConnectionConfig? get activeConfig;
   ConnectionStatus get status;
 
   // connection
-  Future<void> startServer(ConnectionConfig config);
+  Future<void> startServer();
   Future<void> stopServer();
 
   // Authorization

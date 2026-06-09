@@ -30,25 +30,37 @@ class StorageService {
   // ------- Connection Config & Authnentication -----
   Stream<bool> get pairingStream => _pairingStatusController.stream;
 
-  Future<void> setPairingToken(String token) => 
-      _secure.write(StorageKeys.pairingToken, token);
+  // Update this:
+  Future<void> setPairingToken(String token) async {
+    await _secure.write(StorageKeys.pairingToken, token);
+    _pairingStatusController.add(true); 
+  }
 
   Future<void> clearPairingToken() async {
       _secure.delete(StorageKeys.pairingToken);
       _pairingStatusController.add(false);
   }
   
-  Future<String?> getPairingToken() => 
-      _secure.read(StorageKeys.pairingToken);
+  Future<String?> getPairingToken() async {
+    final rawToken = await _secure.read(StorageKeys.pairingToken);
+    return rawToken?.toString();
+  }
 
+  Future<bool> get isPaired async {
+    final token = await _secure.read(StorageKeys.pairingToken);
+    if (token == null) return false;
+    return token.toString().trim().isNotEmpty;
+  }
+
+
+  // client side info
   Future<void> setConnectionConfig(ConnectionConfig config) async {
     final Map<String, dynamic> data = config.toJson();
     final String jsonString = jsonEncode(data);
-    await _prefs.write(StorageKeys.connectionConfig, jsonString);
+    await _prefs.write(StorageKeys.clientConfig, jsonString);
   }
-
   Future<ConnectionConfig?> getConnectionConfig() async {
-    final jsonString = await _prefs.read(StorageKeys.connectionConfig);
+    final jsonString = await _prefs.read(StorageKeys.clientConfig);
     if (jsonString == null) return null;
     
     final Map<String, dynamic> json = jsonDecode(jsonString);
@@ -59,10 +71,24 @@ class StorageService {
     return null;
   }
 
-  Future<bool> get isPaired async {
-    final token = await _secure.read(StorageKeys.pairingToken);
-    return token != null && token.isNotEmpty;
+  // server side connection config
+  Future<void> setServerConfig(ConnectionConfig config) async {
+    final Map<String, dynamic> data = config.toJson();
+    final String jsonString = jsonEncode(data);
+    await _prefs.write(StorageKeys.serverConfig, jsonString);
   }
+  Future<ConnectionConfig?> getServerConfig() async {
+    final jsonString = await _prefs.read(StorageKeys.serverConfig);
+    if (jsonString == null) return null;
+    
+    final Map<String, dynamic> json = jsonDecode(jsonString);
+    final String type = json['type'] as String;
+
+    if (type == 'tcp') return TcpConfig.fromJson(json);
+    // In case of adding Bluetooth/Other types in future (hopefully) , add them here
+    return null;
+  } 
+
 
 
   // ------------------ App Settings ----------------

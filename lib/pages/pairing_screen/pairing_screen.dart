@@ -6,77 +6,24 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 import 'package:laptop_controller/theme/app_theme.dart';
 import 'package:laptop_controller/core/network/domain/connection_config.dart';
+import 'package:laptop_controller/core/network/provider/connection_provider.dart';
 import 'package:laptop_controller/core/storage/provider/storage_service_provider.dart';
-import 'package:laptop_controller/features/pairing/provider/pairing_provider.dart';
 
-class PairingScreen extends ConsumerStatefulWidget {
+final serverConfigStreamProvider = StreamProvider<ConnectionConfig?>((ref) {
+  final manager = ref.watch(connectionManagerProvider);
+  return manager.serverConfigStream;
+});
+
+final pairingTokenProvider = FutureProvider<String>((ref) async {
+  final storage = ref.watch(storageServiceProvider);
+  return await storage.getPairingToken() ?? '';
+});
+
+
+class PairingScreen extends ConsumerWidget {
   const PairingScreen({super.key});
 
-  @override
-  ConsumerState<PairingScreen> createState() => _PairingScreenState();
-}
-
-class _PairingScreenState extends ConsumerState<PairingScreen> {
-  bool _isLoading = true;
-  String _localIP = 'Loading...';
-  int _port = 9999;
-  String _token = '';
-  String _error = '';
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _readPairingDetails());
-  }
-
-  Future<void> _readPairingDetails() async {
-    if (!mounted) return;
-
-    setState(() {
-      _isLoading = true;
-      _error = '';
-    });
-
-    try {
-      final pairingService = ref.read(pairingProvider);
-      final storage = ref.read(storageServiceProvider);
-
-      final config = await storage.getConnectionConfig();
-      final localIP = await pairingService.getLocalIP();
-
-      String secureToken = pairingService.pairingToken;
-      if (secureToken.isEmpty) {
-        secureToken = await storage.getPairingToken() ?? '';
-      }
-
-      if (!mounted) return;
-
-      setState(() {
-        _localIP = localIP;
-        _port = config is TcpConfig ? config.port : 9999;
-        _token = secureToken;
-        _isLoading = false;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Refreshed Pairing Token'),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppTheme.borderRadius),
-        ),
-      ),
-    );
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = e.toString();
-        _isLoading = false;
-      });
-    }
-  }
-
-  void _copyToClipboard(String label, String value) {
+  void _copyToClipboard(BuildContext context, String label, String value) {
     Clipboard.setData(ClipboardData(text: value));
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -89,22 +36,60 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Scaffold(
-      body: SafeArea(
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : _error.isNotEmpty
-                ? _buildErrorState(theme)
-                : _buildPairingContent(theme),
+  void _handleManualRefresh(WidgetRef ref, BuildContext context) async {
+    // Force Riverpod to clear caches and pull fresh configurations/tokens asynchronously
+    ref.invalidate(pairingTokenProvider);
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Refreshed Pairing Token'),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+        ),
       ),
     );
   }
 
-  Widget _buildErrorState(ThemeData theme) {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    
+    // Watch async dependencies independently 
+    final configAsync = ref.watch(serverConfigStreamProvider);
+    final tokenAsync = ref.watch(pairingTokenProvider);
+
+    return Scaffold(
+      body: SafeArea(
+        child: configAsync.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (error, _) => _buildErrorState(theme, error.toString(), ref, context),
+          data: (config) => tokenAsync.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (error, _) => _buildErrorState(theme, error.toString(), ref, context),
+            data: (token) {
+              // Extract data safely using structural type-promotion
+              final String localIP = config is TcpConfig ? config.ip : '127.0.0.1';
+              final int port = config is TcpConfig ? config.port : 9999;
+              
+              debugPrint("Displaying $token on QR Screen");
+
+              return _buildPairingContent(
+                theme: theme,
+                ref: ref,
+                context: context,
+                localIP: localIP,
+                port: port,
+                token: token,
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorState(ThemeData theme, String errorMessage, WidgetRef ref, BuildContext context) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(AppTheme.padding * 2),
@@ -119,7 +104,7 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
             ),
             const SizedBox(height: AppTheme.spacing / 2),
             Text(
-              _error,
+              errorMessage,
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
@@ -127,7 +112,7 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
             ),
             const SizedBox(height: AppTheme.spacing * 2),
             FilledButton.icon(
-              onPressed: _readPairingDetails,
+              onPressed: () => _handleManualRefresh(ref, context),
               icon: const Icon(Icons.refresh),
               label: const Text('Try Again'),
             ),
@@ -137,7 +122,14 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
     );
   }
 
-  Widget _buildPairingContent(ThemeData theme) {
+  Widget _buildPairingContent({
+    required ThemeData theme,
+    required WidgetRef ref,
+    required BuildContext context,
+    required String localIP,
+    required int port,
+    required String token,
+  }) {
     return Center(
       child: SingleChildScrollView(
         child: ConstrainedBox(
@@ -190,15 +182,17 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
 
                         _buildInfoTile(
                           theme: theme,
+                          context: context,
                           icon: Icons.wifi,
                           title: 'IP Address',
-                          value: _localIP,
+                          value: localIP,
                         ),
                         _buildInfoTile(
                           theme: theme,
+                          context: context,
                           icon: Icons.numbers,
                           title: 'Port',
-                          value: _port.toString(),
+                          value: port.toString(),
                         ),
                       ],
                     ),
@@ -225,10 +219,12 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
                         children: [
                           QrImageView(
                             data: jsonEncode({
-                              'type': 'tcp',
-                              'ip': _localIP,
-                              'port': _port,
-                              'token': _token,
+                              'config': {
+                                'type': 'tcp',
+                                'ip': localIP,
+                                'port': port,
+                              },
+                              'token': token,
                             }),
                             version: QrVersions.auto,
                             errorCorrectionLevel: QrErrorCorrectLevel.H,
@@ -248,7 +244,7 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
                             shape: const CircleBorder(),
                             clipBehavior: Clip.antiAlias,
                             child: InkWell(
-                              onTap: _readPairingDetails,
+                              onTap: () => _handleManualRefresh(ref, context),
                               child: Container(
                                 padding: const EdgeInsets.all(16),
                                 decoration: BoxDecoration(
@@ -282,6 +278,7 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
 
   Widget _buildInfoTile({
     required ThemeData theme,
+    required BuildContext context,
     required IconData icon,
     required String title,
     required String value,
@@ -326,7 +323,7 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
           icon: const Icon(Icons.copy_rounded, size: 22),
           color: theme.colorScheme.primary,
           tooltip: 'Copy $title',
-          onPressed: () => _copyToClipboard(title, value),
+          onPressed: () => _copyToClipboard(context, title, value),
         ),
       ),
     );

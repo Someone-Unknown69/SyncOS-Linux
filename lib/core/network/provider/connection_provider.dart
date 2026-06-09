@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:laptop_controller/core/network/domain/connection_config.dart';
 import 'package:laptop_controller/core/storage/provider/storage_service_provider.dart';
 import '../domain/i_connection_manager.dart';
 import '../data/socket_connection_manager.dart';
@@ -29,4 +30,14 @@ final connectionManagerProvider = Provider<IConnectionManager>((ref) {
   ref.onDispose(() => manager.disconnect());
   
   return manager;
+});
+
+final connectionStatusProvider = StreamProvider<ConnectionStatus>((ref) {
+  final manager = ref.watch(connectionManagerProvider);
+  return manager.connectionStatusStream;
+});
+
+final clientConfigProvider = FutureProvider<ConnectionConfig?>((ref) {
+  final storage = ref.watch(storageServiceProvider);
+  return storage.getConnectionConfig();
 });

@@ -1,23 +1,16 @@
 import 'dart:async';
-import 'package:laptop_controller/core/network/domain/connection_config.dart';
 import 'package:laptop_controller/core/network/domain/i_connection_manager.dart';
-import 'package:laptop_controller/core/storage/data/storage_service.dart';
 import 'package:laptop_controller/features/battery/domain/i_local_battery_sender.dart';
 import 'package:laptop_controller/core/handler/data/command_dispatcher.dart';
 import 'package:flutter/foundation.dart';
 import 'package:laptop_controller/features/clipboard/data/local_clipboard_sender.dart';
 import 'package:laptop_controller/features/media/data/local_media_sender.dart';
-import 'package:laptop_controller/features/pairing/domain/i_pairing_service.dart';
 
 class ServiceCoordinator {
   final CommandDispatcher _commandDispatcher;
   
-  // network managers
+  // network manager
   final IConnectionManager _connectionManager;
-  final IPairingService _pairingService;
-
-  // storage related
-  final StorageService _storageService;
   
   // services 
   final IBatteryMonitorService _batteryMonitorService;
@@ -31,16 +24,12 @@ class ServiceCoordinator {
     required IBatteryMonitorService batteryMonitorService,
     required LocalMediaSender mediaService,
     required CommandDispatcher commandDispatcher,
-    required StorageService storageService,
-    required IPairingService pairingService,
     required LocalClipboardSender clipboardService,
   })  : _commandDispatcher = commandDispatcher,
         _connectionManager = connectionManager,
         _batteryMonitorService = batteryMonitorService,
         _mediaService = mediaService,
-        _storageService = storageService,
-        _clipboardSender = clipboardService,
-        _pairingService = pairingService {
+        _clipboardSender = clipboardService {
     _init();
   }
 
@@ -58,14 +47,7 @@ class ServiceCoordinator {
 
   Future<void> _startServerOnAppLaunch() async {
     try {
-      var config = await _storageService.getConnectionConfig();
-      config ??= TcpConfig(port: 9999);
-      
-      debugPrint('Start Server $config');
-
-      await _pairingService.initialize(config);
-
-      await _connectionManager.startServer(config);
+      await _connectionManager.startServer();
     } catch (e) {
       debugPrint('[Coordinator Error] Failed to boot network stack: $e');
     }

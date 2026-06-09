@@ -13,20 +13,27 @@ import 'theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
   
-  final notificationService = NotificationServiceImpl();  // No need to initialize
+  final notificationService = NotificationServiceImpl();  
   final prefs = await SharedPreferences.getInstance();
 
+  final container = ProviderContainer(
+    overrides: [
+      sharedPreferencesProvider.overrideWithValue(prefs),
+      notificationServiceProvider.overrideWithValue(notificationService),
+    ],
+  );
+
   runApp(
-    ProviderScope(
-      overrides: [
-        sharedPreferencesProvider.overrideWithValue(prefs),
-        notificationServiceProvider.overrideWithValue(notificationService),
-      ],
+    UncontrolledProviderScope(
+      container: container,
       child: const SyncOSDesktop(),
     ),
   );
 }
+
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 class SyncOSDesktop extends ConsumerWidget {
   const SyncOSDesktop({super.key});
@@ -36,7 +43,7 @@ class SyncOSDesktop extends ConsumerWidget {
     ref.watch(serviceCoordinatorProvider);
     final themeSettings = ref.watch(themeProvider);
 
-    final paired = ref.watch(pairedProvider);
+    final paired = ref.watch(pairingStatusProvider);
 
     Widget homeWidget = paired.when(
       data: (hasPaired) => hasPaired ? const MainLayout() : const PairingScreen(),
@@ -48,6 +55,7 @@ class SyncOSDesktop extends ConsumerWidget {
     return MaterialApp(
       title: 'SyncOS',
       debugShowCheckedModeBanner: false,
+      navigatorKey: navigatorKey,
       theme: buildTheme(Brightness.light, themeSettings.seedColor),
       darkTheme: buildTheme(Brightness.dark, themeSettings.seedColor),
       themeMode: themeSettings.themeMode,

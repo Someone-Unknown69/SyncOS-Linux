@@ -25,7 +25,6 @@ Widget buildSettingsTile({
 }) {
   return Card(
     elevation: 0,
-    margin: const EdgeInsets.symmetric(vertical: 8),
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.borderRadius)),
     clipBehavior: Clip.antiAlias,
     child: ListTile(
