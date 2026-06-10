@@ -9,6 +9,7 @@ import 'package:laptop_controller/core/hardware/domain/i_device_info.dart';
 import 'package:laptop_controller/core/storage/data/storage_service.dart';
 import 'package:laptop_controller/main.dart';
 import 'package:laptop_controller/pages/components/popup_dialog.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 import '../domain/i_connection_manager.dart';
 import '../domain/connection_config.dart';
@@ -18,7 +19,11 @@ class SocketConnectionManager implements IConnectionManager{
   final StorageService _storage;
   final IDeviceInfo _deviceInfo;
 
-  SocketConnectionManager(this._storage, this._deviceInfo);
+  SocketConnectionManager(this._storage, this._deviceInfo) {
+    _setupConnectivityListener();
+  }
+
+  StreamSubscription<List<ConnectivityResult>>? connectivitySubscription;
 
   ServerSocket? _server;
   Socket? _client;
@@ -113,6 +118,11 @@ class SocketConnectionManager implements IConnectionManager{
   // Common entrypoint either by auto connect or pair
   @override
   Future<void> startServer () async {
+    if (_server != null) {
+      debugPrint('[Socket] Server already running, skipping start');
+      return;
+    }
+
     // build config here as , and we will keep updatinng config in auto connect and start pairing loops 
     //if we need to. that config will be stored in storage and ui will listen to server config to display
     // the pairing token will also be generated here and stored on startPairingMode()
@@ -161,10 +171,14 @@ class SocketConnectionManager implements IConnectionManager{
         final String timestamp = (DateTime.now().millisecondsSinceEpoch ~/ 1000).toString();
         final liveIP = await _getCurrentLocalIp() ?? '0.0.0.0';
 
+        debugPrint('[Auto Connect] IP: $liveIP');
         if (liveIP != tcpConfig.ip) {
-          debugPrint('[Auto Connect] Network migration New IP: $liveIP');
           _serverConfig = TcpConfig(ip: liveIP, port: tcpConfig.port);
           _serverConfigController.add(_serverConfig);
+
+          _udpSocket?.close();
+          _udpSocket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
+          _udpSocket?.broadcastEnabled = true;
         }
 
         // signature computation using the pairing token
@@ -185,11 +199,12 @@ class SocketConnectionManager implements IConnectionManager{
         };
 
         final data = utf8.encode(jsonEncode(payload));
-        
+        final broadcastAddress = _calculateSubnetBroadcast(liveIP);
+
         // Broadcast to the standard local subnet broadcast address
         _udpSocket?.send(
           data, 
-          InternetAddress('255.255.255.255'), 
+          InternetAddress(broadcastAddress), 
           _discoveryPort,
         );
       });
@@ -199,6 +214,7 @@ class SocketConnectionManager implements IConnectionManager{
   }
 
   void startPairingMode() async {
+    stopPairingMode();
     try {
       await generateAndSavePairingToken();
 
@@ -217,6 +233,10 @@ class SocketConnectionManager implements IConnectionManager{
           debugPrint('[Pairing Broadcast] Network migration, New IP: $liveIp');
           _serverConfig = TcpConfig(ip: liveIp, port: tcpConfig.port);
           _serverConfigController.add(_serverConfig);
+
+          _udpSocket?.close();
+          _udpSocket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
+          _udpSocket?.broadcastEnabled = true;
         }
 
         final Map<String, dynamic> payload = {
@@ -300,6 +320,9 @@ class SocketConnectionManager implements IConnectionManager{
       debugPrint('[$op] Handshake failed: $e');
     }
 
+    // Stop discovery/autoconnect service
+    _stopConnectionBroadcast();
+
   }
 
 	@override
@@ -333,7 +356,28 @@ class SocketConnectionManager implements IConnectionManager{
   }
 
 	/// ---------------------------     Core Implementation    ------------------------------------
-  
+
+  ConnectivityResult? _lastResult;
+
+  void _setupConnectivityListener() {
+    connectivitySubscription = Connectivity().onConnectivityChanged.listen((results) {
+      final currentResult = results.first;
+
+      if (_lastResult == currentResult) return;
+      _lastResult = currentResult;
+
+      if(status == ConnectionStatus.connected) {
+        if (currentResult == ConnectivityResult.none) {
+          debugPrint('[Network] Detected disconnect');
+          _handleDisconnect();
+        } else {
+          debugPrint('[Network] Detected network change: ${currentResult.name}');
+          Future.delayed(const Duration(milliseconds: 500), () => _restartServer());
+        }
+      }
+    });
+  }
+
   Future<TcpConfig> _buildConfig() async {
     final liveIp = await _getCurrentLocalIp() ?? '127.0.0.1';
     int defaultPort = _defaultPort;
@@ -347,6 +391,15 @@ class SocketConnectionManager implements IConnectionManager{
       deviceName: deviceName,
       deviceOS: deviceOS
     );
+  }
+
+  String _calculateSubnetBroadcast(String ip) {
+    final parts = ip.split('.');
+    if (parts.length == 4) {
+      parts[3] = '255';
+      return parts.join('.');
+    }
+    return '255.255.255.255'; 
   }
 
 	Future<void> _start(int port) async {
@@ -367,7 +420,6 @@ class SocketConnectionManager implements IConnectionManager{
       _pendingSocket = socket;
 			_buffer.clear();
 			_setupSocketListeners(socket);
-
 		});
 	}
 
@@ -403,21 +455,37 @@ class SocketConnectionManager implements IConnectionManager{
       },
       onDone: () {
         debugPrint("[ON DONE] This is doing that shit");
-        if (socket == _pendingSocket) {
-          _pendingSocket = null;
-        } else if (socket == _client) {
-          _handleDisconnect();
-        }
+        _cleanupSocket(socket);
       },
       onError: (e) {
         debugPrint("[ON ERROR] This is doing that shit $e");
-        if (socket == _pendingSocket) {
-          _pendingSocket = null;
-        } else if (socket == _client) {
-          _handleDisconnect();
-        }
+        _cleanupSocket(socket);
       },
     );
+  }
+
+  void _cleanupSocket(Socket socket) {
+    debugPrint("[Socket] Cleaning up socket: ${socket.remoteAddress.address}");
+    
+    try {
+      socket.destroy();
+    } catch (e) {
+      debugPrint("[Socket] Cleanup error: $e");
+    }
+
+    if (socket == _pendingSocket) {
+      _pendingSocket = null;
+    } else if (socket == _client) {
+      _handleDisconnect();
+    }
+  }
+
+  Future<void> _restartServer() async {
+    debugPrint('[Network] Re-initializing server stack...');
+    await _server?.close();
+    _server = null;
+
+    await _handleDisconnect(); 
   }
 
 	// Method to handle incoming commands from clients
@@ -518,11 +586,17 @@ class SocketConnectionManager implements IConnectionManager{
       _clientConfig = null;
       _clientConfigController.add(null);
 
-      bool isPaired = await _storage.isPaired;
-      if (isPaired) {
-        startAutoConnectionBroadcast();
+      if(_server == null) {
+        // when called by restart
+        startServer();
       } else {
-        startPairingMode(); 
+        // when called to reset
+        bool isPaired = await _storage.isPaired;
+        if(isPaired) {
+          startAutoConnectionBroadcast();
+        } else {
+          startPairingMode();
+        }
       }
 
     } finally {
@@ -534,7 +608,6 @@ class SocketConnectionManager implements IConnectionManager{
 
   Future<void> _clearConnectionInfo() async {
     try {
-      // TODO : setup client config and Clear here
       await _storage.clearPairingToken();
       await _storage.removeClientConfig();
 

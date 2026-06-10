@@ -58,6 +58,7 @@ dependencies:
   mocktail: ^1.0.5
   riverpod_annotation: ^4.0.2
   clipboard_watcher: ^0.3.0
+  connectivity_plus: ^7.1.1
   
 
 dev_dependencies:
