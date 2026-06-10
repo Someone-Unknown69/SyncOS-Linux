@@ -4,6 +4,8 @@ import 'package:laptop_controller/core/hardware/domain/i_local_clipboard.dart';
 import 'package:clipboard_watcher/clipboard_watcher.dart';
 import 'package:flutter/foundation.dart';
 
+// TODO : IMplement this in future updates
+
 class LinuxClipboard with ClipboardListener implements ILocalClipboard{
   
   final StreamController<String> _controller = StreamController<String>.broadcast();
@@ -11,10 +13,10 @@ class LinuxClipboard with ClipboardListener implements ILocalClipboard{
 
   @override
   void init () {
-    clipboardWatcher.addListener(this);
-    clipboardWatcher.start();
+    // clipboardWatcher.addListener(this);
+    // clipboardWatcher.start();
 
-    debugPrint('[Linux Clipboard] Started');
+    // debugPrint('[Linux Clipboard] Started');
   }
 
   @override

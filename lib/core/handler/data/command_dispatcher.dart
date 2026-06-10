@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:laptop_controller/features/clipboard/provider/remote_clipboard_notifier.dart';
 import 'package:laptop_controller/features/gamepad/domain/i_controller_service.dart';
 import 'package:laptop_controller/features/media/data/local_media_sender.dart';
 import 'package:laptop_controller/features/media/provider/remote_media_state.dart';
@@ -88,6 +89,8 @@ class CommandDispatcher {
           if(action == 'receive') {
             _remoteNotificationService.saveNotification(args);
           }
+        case 'clipboard':
+          ref.read(remoteClipboardProvider.notifier).addClipboardContent(args['content']);
       }
     });
   }

@@ -1,22 +1,28 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:laptop_controller/features/clipboard/provider/remote_clipboard_notifier.dart';
 import '../../../theme/app_theme.dart';
 
-class Clipboard extends StatelessWidget {
-  final double borderRadius = AppTheme.borderRadius;
-  final double spacing = AppTheme.spacing;
-  final double padding = AppTheme.padding;
+class ClipboardWidget extends ConsumerStatefulWidget {
+  const ClipboardWidget({super.key});
 
-  const Clipboard({super.key});
+  @override
+  ConsumerState<ClipboardWidget> createState() => _ClipboardState();
+}
 
+class _ClipboardState extends ConsumerState<ClipboardWidget> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    
+    final clipboardData = ref.watch(remoteClipboardProvider);
 
     return Container(
-      padding: EdgeInsets.all(padding),
+      padding: EdgeInsets.all(AppTheme.padding),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(borderRadius),
+        borderRadius: BorderRadius.circular(AppTheme.borderRadius),
         color: colorScheme.surfaceContainerLow,
       ),
       child: Column(
@@ -25,7 +31,6 @@ class Clipboard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Row(
-                mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
                     Icons.paste_rounded,
@@ -38,42 +43,59 @@ class Clipboard extends StatelessWidget {
                     style: TextStyle(
                       color: colorScheme.onSurfaceVariant,
                       fontSize: 14.0,
-                      fontWeight: FontWeight(500)
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                 ],
               ),
-      
+
               FilledButton.icon(
-                onPressed: () => {},
-                icon: const Icon(Icons.sync),
-                label: const Text("Sync Clipboard"),
+                onPressed: clipboardData != null
+                    ? () {
+                        Clipboard.setData(ClipboardData(text: clipboardData.content));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Copied to clipboard!')),
+                        );
+                      }
+                    : null,
+                icon: const Icon(Icons.copy),
+                label: const Text("Copy Text"),
                 style: FilledButton.styleFrom(
-                  elevation: 0, 
+                  elevation: 0,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(borderRadius),
+                    borderRadius: BorderRadius.circular(AppTheme.borderRadius),
                   ),
-                  backgroundColor: colorScheme.primary,
+                  // Force the background color for the enabled state
+                  backgroundColor: clipboardData != null 
+                      ? colorScheme.primary 
+                      : colorScheme.surfaceContainerHighest, 
+                  foregroundColor: clipboardData != null 
+                      ? colorScheme.onPrimary 
+                      : colorScheme.onSurfaceVariant,
                 ),
               ),
             ],
           ),
-      
+          SizedBox(height: AppTheme.spacing),
           Expanded(
             child: Container(
               width: double.infinity,
+              padding: EdgeInsets.all(AppTheme.padding),
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(borderRadius),
-                color: colorScheme.surfaceContainerLow,
+                borderRadius: BorderRadius.circular(AppTheme.borderRadius),
+                color: colorScheme.surfaceContainer,
               ),
-              child: const Center(
-                child: Text("This fills the rest of the vertical space"),
-              )
+              child: Center(
+                child: Text(
+                  clipboardData?.content ?? "No content synced yet",
+                  textAlign: TextAlign.left,
+                  style: TextStyle(color: colorScheme.onSurface),
+                ),
+              ),
             ),
           )
         ],
       ),
     );
   }
-
 }

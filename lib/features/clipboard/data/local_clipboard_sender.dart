@@ -15,13 +15,7 @@ class LocalClipboardSender {
   );
 
   void start() {
-    // _clipboardChannel.init();
-
-    // _clipboardSubscription = _clipboardChannel.clipboardUpdates.listen((text) {
-    //   _onClipboardInfo(text);
-    // });
-
-    // debugPrint("[Local Clipboard] Service activated");
+    
   }
 
   void onClipboardInfo(String newText) {

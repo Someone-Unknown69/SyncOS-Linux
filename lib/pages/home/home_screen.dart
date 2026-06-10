@@ -105,7 +105,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                           const SizedBox(height: AppTheme.spacing),
                                 
                                           Expanded(
-                                            child: const Clipboard(),
+                                            child: ClipboardWidget(),
                                           ),
                                         ],
                                       ),

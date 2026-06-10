@@ -402,6 +402,7 @@ class SocketConnectionManager implements IConnectionManager{
         }
       },
       onDone: () {
+        debugPrint("[ON DONE] This is doing that shit");
         if (socket == _pendingSocket) {
           _pendingSocket = null;
         } else if (socket == _client) {
@@ -409,6 +410,7 @@ class SocketConnectionManager implements IConnectionManager{
         }
       },
       onError: (e) {
+        debugPrint("[ON ERROR] This is doing that shit $e");
         if (socket == _pendingSocket) {
           _pendingSocket = null;
         } else if (socket == _client) {
