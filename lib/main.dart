@@ -42,6 +42,7 @@ class SyncOSDesktop extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     ref.watch(serviceCoordinatorProvider);
     final themeSettings = ref.watch(themeProvider);
+    // ref.read(storageServiceProvider).clearPairingToken();
 
     final paired = ref.watch(pairingStatusProvider);
 

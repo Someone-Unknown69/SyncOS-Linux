@@ -26,28 +26,24 @@ class PrefsStorage implements IStorageService{
 
   @override
   Future<T?> read<T>(String key) async {
-    if (T == String) {
-      return _prefs.getString(key) as T?;
-    }
-    if (T == int) {
-      return _prefs.getInt(key) as T?;
-    }
-    if (T == bool) {
-      return _prefs.getBool(key) as T?;
-    }
-    if (T == double) {
-      return _prefs.getDouble(key) as T?;
-    }
+    if (T == String) return _prefs.getString(key) as T?;
+    if (T == int) return _prefs.getInt(key) as T?;
+    if (T == bool) return _prefs.getBool(key) as T?;
+    if (T == double) return _prefs.getDouble(key) as T?;
 
     final String? rawJsonString = _prefs.getString(key);
     if (rawJsonString == null) return null;
 
     try {
-      final decodedData = jsonDecode(rawJsonString);
-      return decodedData as T?;
-    } catch (_) {
-      return null;
-    }
+      final dynamic decoded = jsonDecode(rawJsonString);
+      if (decoded is T) {
+        return decoded;
+      }
+      if (T == Map && decoded is Map) {
+        return decoded as T;
+      }
+    } catch (_) {}
+    return null;
   }
 
   @override

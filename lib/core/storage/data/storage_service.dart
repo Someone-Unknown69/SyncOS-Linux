@@ -54,21 +54,25 @@ class StorageService {
 
 
   // client side info
-  Future<void> setConnectionConfig(ConnectionConfig config) async {
+  Future<void> setClientConfig(ConnectionConfig config) async {
     final Map<String, dynamic> data = config.toJson();
     final String jsonString = jsonEncode(data);
     await _prefs.write(StorageKeys.clientConfig, jsonString);
   }
-  Future<ConnectionConfig?> getConnectionConfig() async {
-    final jsonString = await _prefs.read(StorageKeys.clientConfig);
-    if (jsonString == null) return null;
-    
-    final Map<String, dynamic> json = jsonDecode(jsonString);
-    final String type = json['type'] as String;
 
-    if (type == 'tcp') return TcpConfig.fromJson(json);
-    // In case of adding Bluetooth/Other types in future (hopefully) , add them here
+  Future<ConnectionConfig?> getClientConfig() async {
+    final Map<String, dynamic>? json = await _prefs.read<Map<String, dynamic>>(StorageKeys.clientConfig);
+    
+    if (json == null) return null;
+    final String? type = json['type'] as String?;
+    if (type == 'tcp') {
+      return TcpConfig.fromJson(json);
+    }
     return null;
+  }
+
+  Future<void> removeClientConfig() async {
+    await _prefs.delete(StorageKeys.clientConfig);
   }
 
   // server side connection config
@@ -77,6 +81,7 @@ class StorageService {
     final String jsonString = jsonEncode(data);
     await _prefs.write(StorageKeys.serverConfig, jsonString);
   }
+
   Future<ConnectionConfig?> getServerConfig() async {
     final jsonString = await _prefs.read(StorageKeys.serverConfig);
     if (jsonString == null) return null;
@@ -89,6 +94,9 @@ class StorageService {
     return null;
   } 
 
+  Future<void> removeServerConfig() async {
+    await _prefs.delete(StorageKeys.serverConfig);
+  }
 
 
   // ------------------ App Settings ----------------

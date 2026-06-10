@@ -15,16 +15,16 @@ class LocalClipboardSender {
   );
 
   void start() {
-    _clipboardChannel.init();
+    // _clipboardChannel.init();
 
-    _clipboardSubscription = _clipboardChannel.clipboardUpdates.listen((text) {
-      _onClipboardInfo(text);
-    });
+    // _clipboardSubscription = _clipboardChannel.clipboardUpdates.listen((text) {
+    //   _onClipboardInfo(text);
+    // });
 
-    debugPrint("[Local Clipboard] Service activated");
+    // debugPrint("[Local Clipboard] Service activated");
   }
 
-  void _onClipboardInfo(String newText) {
+  void onClipboardInfo(String newText) {
     debugPrint('[Local Clipboard] Sending $newText');
     _networkChannel.send('clipboard', '', {'text' : newText});
   }

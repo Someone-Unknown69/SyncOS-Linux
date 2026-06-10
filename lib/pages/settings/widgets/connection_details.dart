@@ -67,15 +67,20 @@ class ConnectionDetailsCard extends ConsumerWidget {
                   ),
                   const SizedBox(height: 4),
                   
-                  Text(
-                    isConnected && config != null
-                        ? "${config.ip}:${config.port}"
-                        : "Waiting for connection...",
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                      fontFamily: isConnected ? 'monospace' : null,
+                  isConnected && config != null
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text("IP: ${config.ip}", style: theme.textTheme.bodyMedium?.copyWith(fontFamily: 'monospace')),
+                        Text("Port: ${config.port}", style: theme.textTheme.bodyMedium?.copyWith(fontFamily: 'monospace')),
+                      ],
+                    )
+                  : Text(
+                      "Waiting for connection...",
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
                     ),
-                  ),
                 ],
               ),
             ),

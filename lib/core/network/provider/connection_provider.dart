@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:laptop_controller/core/hardware/provider/hardware_providers.dart';
 import 'package:laptop_controller/core/network/domain/connection_config.dart';
 import 'package:laptop_controller/core/storage/provider/storage_service_provider.dart';
 import '../domain/i_connection_manager.dart';
@@ -24,8 +25,9 @@ import '../data/socket_connection_manager.dart';
 final connectionManagerProvider = Provider<IConnectionManager>((ref) {
   // In case of changing conenection manager in future, ONLY THIS FILE shall be changed
   final storage = ref.watch(storageServiceProvider);
+  final deviceInfo = ref.watch(deviceInfoProvider);
 
-  final manager = SocketConnectionManager(storage);
+  final manager = SocketConnectionManager(storage, deviceInfo);
   
   ref.onDispose(() => manager.disconnect());
   
@@ -39,5 +41,10 @@ final connectionStatusProvider = StreamProvider<ConnectionStatus>((ref) {
 
 final clientConfigProvider = FutureProvider<ConnectionConfig?>((ref) {
   final storage = ref.watch(storageServiceProvider);
-  return storage.getConnectionConfig();
+  return storage.getClientConfig();
+});
+
+final serverConfigProvider = StreamProvider<ConnectionConfig?>((ref) {
+  final manager = ref.watch(connectionManagerProvider);
+  return manager.serverConfigStream;
 });

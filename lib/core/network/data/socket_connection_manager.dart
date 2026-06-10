@@ -5,6 +5,7 @@ import 'dart:math';
 import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
+import 'package:laptop_controller/core/hardware/domain/i_device_info.dart';
 import 'package:laptop_controller/core/storage/data/storage_service.dart';
 import 'package:laptop_controller/main.dart';
 import 'package:laptop_controller/pages/components/popup_dialog.dart';
@@ -15,8 +16,9 @@ import 'package:flutter/foundation.dart';
 
 class SocketConnectionManager implements IConnectionManager{
   final StorageService _storage;
+  final IDeviceInfo _deviceInfo;
 
-  SocketConnectionManager(this._storage);
+  SocketConnectionManager(this._storage, this._deviceInfo);
 
   ServerSocket? _server;
   Socket? _client;
@@ -36,7 +38,8 @@ class SocketConnectionManager implements IConnectionManager{
   final int _defaultPort = 9999;
   
   String _token = "";
-
+  String? _cachedDeviceName;
+  String? _cacheDeviceOS;
 
   // TODO : Remove this and add a notification for confirmation
   Future<bool> showPairingDialog(String ip) async {
@@ -66,7 +69,6 @@ class SocketConnectionManager implements IConnectionManager{
 
     return completer.future;
   }
-
 
   ConnectionStatus _status = ConnectionStatus.inactive;
   ConnectionConfig? _serverConfig;
@@ -220,8 +222,9 @@ class SocketConnectionManager implements IConnectionManager{
         final Map<String, dynamic> payload = {
           "service": "SyncOS-server",
           "status": "pairing_mode",
-          "deviceName" : "Laptop",
           "config": {
+            "deviceName" : _cachedDeviceName,
+            "deviceOS" : _cachedDeviceName,
             "type": 'tcp',
             "ip": liveIp,
             "port": tcpConfig.port
@@ -242,7 +245,6 @@ class SocketConnectionManager implements IConnectionManager{
     final token = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
 
     debugPrint('[Pairing Broadcast] New secure pairing token generated: $token');
-
     _token =  token;
   }
 
@@ -286,13 +288,7 @@ class SocketConnectionManager implements IConnectionManager{
     if(op == 'pair') {
       args['token'] = _token;
       await _storage.setPairingToken(_token);
-
-      final saved = await _storage.getPairingToken();
-      debugPrint('[Accept] Verification: Disk read back token: $saved');
-      
-      if (saved == null) {
-        debugPrint('[Accept] CRITICAL: Token failed to save to disk!');
-      }
+      await _storage.setClientConfig(_clientConfig!);
     }
 
     try {
@@ -301,7 +297,7 @@ class SocketConnectionManager implements IConnectionManager{
       _sendRaw(payload, compress: false);
       debugPrint('[$op] Accepted sent');
     } catch (e) {
-      debugPrint('[Accept] Handshake failed: $e');
+      debugPrint('[$op] Handshake failed: $e');
     }
 
   }
@@ -341,8 +337,16 @@ class SocketConnectionManager implements IConnectionManager{
   Future<TcpConfig> _buildConfig() async {
     final liveIp = await _getCurrentLocalIp() ?? '127.0.0.1';
     int defaultPort = _defaultPort;
+
+    final String deviceName = _cachedDeviceName ??= await _deviceInfo.getDeviceName();
+    final String deviceOS = _cacheDeviceOS ??= await _deviceInfo.getOSVersion();
     
-    return TcpConfig(ip: liveIp, port: defaultPort);
+    return TcpConfig(
+      ip: liveIp, 
+      port: defaultPort,
+      deviceName: deviceName,
+      deviceOS: deviceOS
+    );
   }
 
 	Future<void> _start(int port) async {
@@ -469,6 +473,7 @@ class SocketConnectionManager implements IConnectionManager{
         _stopConnectionBroadcast();
         startPairingMode();
         debugPrint('[Socket] Remote device unpaired');
+        return;
       }
 
 			if(_status == ConnectionStatus.connected) {
@@ -529,6 +534,7 @@ class SocketConnectionManager implements IConnectionManager{
     try {
       // TODO : setup client config and Clear here
       await _storage.clearPairingToken();
+      await _storage.removeClientConfig();
 
       debugPrint('[Socket] Paired device Info cleared successfully');
     } catch (e) {

@@ -9,16 +9,10 @@ import 'package:laptop_controller/core/network/domain/connection_config.dart';
 import 'package:laptop_controller/core/network/provider/connection_provider.dart';
 import 'package:laptop_controller/core/storage/provider/storage_service_provider.dart';
 
-final serverConfigStreamProvider = StreamProvider<ConnectionConfig?>((ref) {
-  final manager = ref.watch(connectionManagerProvider);
-  return manager.serverConfigStream;
-});
-
 final pairingTokenProvider = FutureProvider<String>((ref) async {
   final storage = ref.watch(storageServiceProvider);
   return await storage.getPairingToken() ?? '';
 });
-
 
 class PairingScreen extends ConsumerWidget {
   const PairingScreen({super.key});
@@ -56,7 +50,7 @@ class PairingScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     
     // Watch async dependencies independently 
-    final configAsync = ref.watch(serverConfigStreamProvider);
+    final configAsync = ref.watch(serverConfigProvider);
     final tokenAsync = ref.watch(pairingTokenProvider);
 
     return Scaffold(
@@ -71,8 +65,13 @@ class PairingScreen extends ConsumerWidget {
               // Extract data safely using structural type-promotion
               final String localIP = config is TcpConfig ? config.ip : '127.0.0.1';
               final int port = config is TcpConfig ? config.port : 9999;
+              final deviceName = config?.deviceName ?? "Unknown";
+              final deviceOs = config?.deviceOS ?? "Unknown";
               
+              debugPrint("Displaying config ${config?.toJson()}");
               debugPrint("Displaying $token on QR Screen");
+
+              // TODO : decouple qr scanning from confirmation
 
               return _buildPairingContent(
                 theme: theme,
@@ -81,6 +80,8 @@ class PairingScreen extends ConsumerWidget {
                 localIP: localIP,
                 port: port,
                 token: token,
+                deviceName: deviceName,
+                deviceOS: deviceOs,
               );
             },
           ),
@@ -129,6 +130,8 @@ class PairingScreen extends ConsumerWidget {
     required String localIP,
     required int port,
     required String token,
+    required String deviceName,
+    required String deviceOS,
   }) {
     return Center(
       child: SingleChildScrollView(
@@ -223,6 +226,8 @@ class PairingScreen extends ConsumerWidget {
                                 'type': 'tcp',
                                 'ip': localIP,
                                 'port': port,
+                                "deviceName" : deviceName,
+                                "deviceOS" : deviceOS,
                               },
                               'token': token,
                             }),
