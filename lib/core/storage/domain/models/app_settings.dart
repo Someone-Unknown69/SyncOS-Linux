@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:json_annotation/json_annotation.dart';
-import 'package:laptop_controller/core/utils/color_converter.dart';
+import 'package:laptop_controller/core/misc/color_converter.dart';
 
 part 'app_settings.g.dart';
 

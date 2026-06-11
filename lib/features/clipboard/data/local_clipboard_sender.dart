@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/cupertino.dart';
-import 'package:laptop_controller/core/hardware/domain/i_local_clipboard.dart';
+import 'package:laptop_controller/core/utilities/domain/i_local_clipboard.dart';
 import 'package:laptop_controller/core/network/domain/i_connection_manager.dart';
 
 class LocalClipboardSender {

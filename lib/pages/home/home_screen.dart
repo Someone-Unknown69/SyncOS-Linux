@@ -31,6 +31,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   late final List<DashboardItem> _items = [
     DashboardItem(
       label: 'Send Files',
+      body: 'Transfer and recieve files remotely',
       icon: Icons.file_copy,
       onTap: () async {
         final fileTransferService = ref.read(fileTransferServiceProvider);
@@ -38,12 +39,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       },
     ),
     DashboardItem(
-      label: 'Run Command',
+      label: 'Remote Command',
+      body: 'Add/Remove commands',
       icon: Icons.terminal,
-      onTap: () => (),
+      onTap:() {
+        
+      }
     ),
     DashboardItem(
       label: 'Ring Device',
+      body: "Lost it again?",
       icon: Icons.speaker_phone,
       onTap: () async {},
     ),

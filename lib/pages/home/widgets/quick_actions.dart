@@ -9,7 +9,6 @@ class DashboardGrid extends StatelessWidget {
   final double spacing = AppTheme.spacing;
   final double padding = AppTheme.padding;
 
-  // --- DESIGN CONSTANTS ---
   
   // Layout Breakpoints & Grid Extents
   static const double compactBreakpoint = 550.0;
@@ -138,7 +137,7 @@ class DashboardGrid extends StatelessWidget {
               const Spacer(),
               Text(
                 item.label,
-                maxLines: 1,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontSize: gridLabelFontSize,
@@ -148,8 +147,8 @@ class DashboardGrid extends StatelessWidget {
               ),
               const SizedBox(height: gridSubLabelTopMargin),
               Text(
-                "Tap to execute action",
-                maxLines: 1,
+                item.body,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontSize: gridSubLabelFontSize,
@@ -227,7 +226,7 @@ class DashboardGrid extends StatelessWidget {
                     ),
                     const SizedBox(height: subLabelTopMargin),
                     Text(
-                      "Tap to execute action",
+                      item.body,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(

@@ -561,21 +561,24 @@ class SocketConnectionManager implements IConnectionManager{
     }
   }
 
-	// Update this signature and implementation
   void _sendRaw(String msg, {bool compress = true}) {
     try {
       final rawBytes = utf8.encode(msg);
-      
       final List<int> payload = compress ? gzip.encode(rawBytes) : rawBytes;
 
       final lengthBytes = ByteData(4)..setUint32(0, payload.length, Endian.big);
+      final headerList = lengthBytes.buffer.asUint8List();
+
+      final combinedPacket = Uint8List(headerList.length + payload.length);
       
+      combinedPacket.setRange(0, headerList.length, headerList);
+      combinedPacket.setRange(headerList.length, combinedPacket.length, payload);
+
       final socket = _client ?? _pendingSocket!; 
+      socket.add(combinedPacket);
       
-      socket.add(lengthBytes.buffer.asUint8List());
-      socket.add(payload);
     } catch (e) {
-      debugPrint('[Server/Client] Send raw error: $e');
+      debugPrint('[Socket] Send raw error: $e');
     }
   }
 

@@ -1,4 +1,4 @@
-import 'package:laptop_controller/core/hardware/domain/clipboard_object_model.dart';
+import 'package:laptop_controller/core/utilities/domain/clipboard_object_model.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'remote_clipboard_notifier.g.dart';

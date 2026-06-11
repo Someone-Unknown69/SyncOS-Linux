@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:laptop_controller/core/utilities/domain/i_remote_command.dart';
 import 'package:laptop_controller/features/clipboard/provider/remote_clipboard_notifier.dart';
 import 'package:laptop_controller/features/gamepad/domain/i_controller_service.dart';
 import 'package:laptop_controller/features/media/data/local_media_sender.dart';
@@ -20,6 +21,7 @@ class CommandDispatcher {
   final FileTransferService _fileTransferService;
   final IControllerService _controllerService;
   final IRemoteNotificationService _remoteNotificationService;
+  final IRemoteCommand _remoteCommand;
 
   StreamSubscription<String>? _rawMessageSubscription;
   bool _isStarted = false;
@@ -31,6 +33,7 @@ class CommandDispatcher {
     this._fileTransferService,
     this._controllerService,
     this._remoteNotificationService,
+    this._remoteCommand,
   );
 
   void start() {
@@ -91,6 +94,11 @@ class CommandDispatcher {
           }
         case 'clipboard':
           ref.read(remoteClipboardProvider.notifier).addClipboardContent(args['content']);
+        case 'remote_command':
+          _remoteCommand.runCommand(
+            args['command'], 
+            (args['isRoot'] as bool?) ?? false,
+          );
       }
     });
   }

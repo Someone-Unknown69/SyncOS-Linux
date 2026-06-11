@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/services.dart';
-import 'package:laptop_controller/core/hardware/domain/i_local_clipboard.dart';
+import 'package:laptop_controller/core/utilities/domain/i_local_clipboard.dart';
 import 'package:clipboard_watcher/clipboard_watcher.dart';
 import 'package:flutter/foundation.dart';
 
