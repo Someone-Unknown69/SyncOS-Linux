@@ -50,7 +50,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       label: 'Ring Device',
       body: "Lost it again?",
       icon: Icons.speaker_phone,
-      onTap: () async {},
+      onTap: () async {
+        final connectionManager = ref.read(connectionManagerProvider);
+        connectionManager.send(
+          'ring_device',
+          '', 
+          {
+            'is_looping' : 'true',
+            'is_alarm' : 'false',
+          }
+        );
+      },
     ),
   ];
 
