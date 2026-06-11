@@ -40,7 +40,7 @@ class CommandDispatcher {
     _rawMessageSubscription = _connectionManager.rawMessageStream.listen((rawMessage) {
       final Map<String, dynamic> data = jsonDecode(rawMessage);
       final String operation = data['op'];
-      final String action = data['action'];
+      final String action = data['action'] ?? "N/A";
       final Map<String, dynamic> args = data['args'];
 
       debugPrint('[Dispatcher] : Recieved $data');

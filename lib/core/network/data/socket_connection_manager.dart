@@ -171,8 +171,8 @@ class SocketConnectionManager implements IConnectionManager{
         final String timestamp = (DateTime.now().millisecondsSinceEpoch ~/ 1000).toString();
         final liveIP = await _getCurrentLocalIp() ?? '0.0.0.0';
 
-        debugPrint('[Auto Connect] IP: $liveIP');
         if (liveIP != tcpConfig.ip) {
+          debugPrint('[Auto Connect] Changed IP: $liveIP');
           _serverConfig = TcpConfig(ip: liveIP, port: tcpConfig.port);
           _serverConfigController.add(_serverConfig);
 
@@ -465,8 +465,14 @@ class SocketConnectionManager implements IConnectionManager{
   }
 
   void _cleanupSocket(Socket socket) {
-    debugPrint("[Socket] Cleaning up socket: ${socket.remoteAddress.address}");
-    
+    String remoteAddr = "unknown";
+    try {
+      remoteAddr = "${socket.remoteAddress.address}:${socket.remotePort}";
+    } catch (e) {
+      debugPrint("[Socket] Could not retrieve remote address: $e");
+    }
+
+    debugPrint("[Socket] Cleaning up socket: $remoteAddr");
     try {
       socket.destroy();
     } catch (e) {
