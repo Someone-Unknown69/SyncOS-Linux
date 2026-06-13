@@ -14,6 +14,7 @@ migrate_working_dir/
 
 # .deb building script
 build_deb.sh
+dist_sync-os/
 
 # IntelliJ related
 *.iml

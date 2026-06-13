@@ -1,7 +1,0 @@
-[Desktop Entry]
-Name=Sync OS
-Exec=/usr/bin/sync_os_desktop
-Icon=sync-os-icon
-Type=Application
-Categories=Utility;
-StartupWMClass=sync_os_desktop
