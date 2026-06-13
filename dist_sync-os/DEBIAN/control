@@ -1,0 +1,6 @@
+Package: sync-os
+Version: 1.0.0
+Architecture: amd64
+Maintainer: Kartik <kartikchhatre8@gmail.com>
+Description: Sync OS Desktop Application
+Depends: libgtk-3-0, libglib2.0-0, libstdc++6

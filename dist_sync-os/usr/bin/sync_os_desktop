@@ -1,0 +1,3 @@
+#!/bin/bash
+export LD_LIBRARY_PATH=/usr/lib/sync-os:$LD_LIBRARY_PATH
+exec /usr/lib/sync-os/sync_os_desktop "$@"

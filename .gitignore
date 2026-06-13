@@ -12,6 +12,9 @@
 .swiftpm/
 migrate_working_dir/
 
+# .deb building script
+build_deb.sh
+
 # IntelliJ related
 *.iml
 *.ipr
