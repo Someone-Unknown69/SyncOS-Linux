@@ -42,6 +42,8 @@ class SocketConnectionManager implements IConnectionManager{
   final int _discoveryPort = 6767;
   final int _defaultPort = 9999;
   
+  Timer? _pongTimeoutTimer;
+
   String _token = "";
   String? _cachedDeviceName;
   String? _cacheDeviceOS;
@@ -315,6 +317,8 @@ class SocketConnectionManager implements IConnectionManager{
       debugPrint('[Accept] sending accept with $args');
       final payload = jsonEncode({"op": op, "action": "accepted", "args": args});
       _sendRaw(payload, compress: false);
+      
+      
       debugPrint('[$op] Accepted sent');
     } catch (e) {
       debugPrint('[$op] Handshake failed: $e');
@@ -442,7 +446,18 @@ class SocketConnectionManager implements IConnectionManager{
               jsonString = utf8.decode(payload);
             }
 
-            _handleCommand(jsonString, socket);
+            if(jsonString == 'PING') {
+              debugPrint('Received : $jsonString');
+              _sendRaw("PONG");
+
+              _pongTimeoutTimer?.cancel();
+              _pongTimeoutTimer = Timer(const Duration(seconds: 40), () {
+                debugPrint("[Socket] Time out getting back to connection mode");
+                _handleDisconnect();
+              });
+            } else {
+              _handleCommand(jsonString, socket);
+            }
             
             _buffer.clear();
             if (bytes.length > 4 + length) {
@@ -463,6 +478,7 @@ class SocketConnectionManager implements IConnectionManager{
       },
     );
   }
+
 
   void _cleanupSocket(Socket socket) {
     String remoteAddr = "unknown";
@@ -497,12 +513,6 @@ class SocketConnectionManager implements IConnectionManager{
 	// Method to handle incoming commands from clients
   Future<void> _handleCommand(String command, Socket socket) async {
     try {
-      if (command == "PING") {
-        debugPrint('Received : $command');
-        _sendRaw("PONG");
-        return;
-      }
-
       final data = jsonDecode(command);
       
       if (socket == _pendingSocket) {
@@ -584,6 +594,8 @@ class SocketConnectionManager implements IConnectionManager{
 
 	// Kill the server and close
   Future<void> _handleDisconnect() async {
+    _pongTimeoutTimer?.cancel();
+
     if (_isDisconnecting == true) return; 
     _isDisconnecting = true;
 
