@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:laptop_controller/core/network/provider/connection_provider.dart';
 import '../../../theme/app_theme.dart';
 
 class StatusNotConnected extends ConsumerWidget {
@@ -132,45 +133,25 @@ class StatusConnected extends ConsumerWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                "Welcome back !", 
+                "Welcome back!", 
                 style: TextStyle(fontSize: 30 ,fontWeight: FontWeight.w600)
               ),
 
-              Row( 
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  // Ping button 
-                  FilledButton.icon(
-                    onPressed: () => {},
-                    icon: const Icon(Icons.network_ping_rounded),
-                    label: const Text("Ping"),
-                    style: FilledButton.styleFrom(
-                      elevation: 0, 
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppTheme.borderRadius),
-                      ),
-                      backgroundColor: colorScheme.primary,
-                    ),
+              FilledButton.icon(
+                onPressed: () async {
+                  ref.read(connectionManagerProvider).unpair();
+                },
+                icon: const Icon(Icons.power_off),
+                label: const Text("Unpair"),
+                style: FilledButton.styleFrom(
+                  elevation: 0, 
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppTheme.borderRadius),
                   ),
-
-                  SizedBox(width: AppTheme.spacing),
-
-                  // disconnect button
-                  FilledButton.icon(
-                    onPressed: () async {},
-                    icon: const Icon(Icons.power_off),
-                    label: const Text("Disconnect"),
-                    style: FilledButton.styleFrom(
-                      elevation: 0, 
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppTheme.borderRadius),
-                      ),
-                      backgroundColor: Colors.red,
-                      foregroundColor: colorScheme.surfaceBright,
-                    ),
-                  ),
-                ],
-              )
+                  backgroundColor: Colors.red,
+                  foregroundColor: colorScheme.surfaceContainerHighest,
+                ),
+              ),
             ],
           ),
 

@@ -282,8 +282,7 @@ class SocketConnectionManager implements IConnectionManager{
 	@override
 	Future<void> stopServer() async{
     await _handleDisconnect();
-    _server?.close();
-    _status = ConnectionStatus.inactive;
+    _status = ConnectionStatus.active;
 		_statusController.add(_status);
   }
 
@@ -359,6 +358,23 @@ class SocketConnectionManager implements IConnectionManager{
 		_sendRaw(payload);
   }
 
+  @override
+  Future<void> unpair() async {
+    try {
+      await _sendRaw(jsonEncode({'op': 'unpair'}), compress: false);
+    } catch (e) {
+      debugPrint('[Socket] Could not notify server of unpair, forcing local cleanup.');
+    }
+
+    await _clearConnectionInfo();
+    _client?.destroy();
+    _client = null;
+    
+    _stopConnectionBroadcast();
+    startPairingMode();
+    debugPrint('[Socket] Remote device unpaired');
+    return;
+  }
 	/// ---------------------------     Core Implementation    ------------------------------------
 
   ConnectivityResult? _lastResult;
@@ -550,15 +566,7 @@ class SocketConnectionManager implements IConnectionManager{
       }
 
       if(data['op'] == 'unpair') {
-        await _clearConnectionInfo();
-        await _clearConnectionInfo();
-  
-        _client?.destroy();
-        _client = null;
-        
-        _stopConnectionBroadcast();
-        startPairingMode();
-        debugPrint('[Socket] Remote device unpaired');
+        await unpair();
         return;
       }
 
@@ -571,22 +579,17 @@ class SocketConnectionManager implements IConnectionManager{
     }
   }
 
-  void _sendRaw(String msg, {bool compress = true}) {
+  Future<void> _sendRaw(String msg, {bool compress = true}) async {
     try {
       final rawBytes = utf8.encode(msg);
       final List<int> payload = compress ? gzip.encode(rawBytes) : rawBytes;
-
       final lengthBytes = ByteData(4)..setUint32(0, payload.length, Endian.big);
-      final headerList = lengthBytes.buffer.asUint8List();
-
-      final combinedPacket = Uint8List(headerList.length + payload.length);
-      
-      combinedPacket.setRange(0, headerList.length, headerList);
-      combinedPacket.setRange(headerList.length, combinedPacket.length, payload);
-
       final socket = _client ?? _pendingSocket!; 
-      socket.add(combinedPacket);
       
+      socket.add(lengthBytes.buffer.asUint8List());
+      socket.add(payload);
+
+      socket.flush();      
     } catch (e) {
       debugPrint('[Socket] Send raw error: $e');
     }

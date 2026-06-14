@@ -14,7 +14,10 @@ migrate_working_dir/
 
 # .deb building script
 build_deb.sh
-dist_sync-os/
+dist_sync-os-desktop/
+linux/sync-os.desktop
+snap/
+parts/
 
 # IntelliJ related
 *.iml
@@ -25,8 +28,7 @@ dist_sync-os/
 # The .vscode folder contains launch configuration and tasks you configure in
 # VS Code which you may wish to be included in version control, so this line
 # is commented out by default.
-#.vscode/
-
+.vscode/
 # Flutter/Dart/Pub related
 **/doc/api/
 **/ios/Flutter/.last_build_id

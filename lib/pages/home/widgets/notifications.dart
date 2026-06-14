@@ -227,32 +227,20 @@ class NotificationsState extends ConsumerState<Notifications> {
                   backgroundColor: colorScheme.secondary,
                 ),
               ),
-              FilledButton.icon(
-                onPressed: () {
-                  service.saveNotification(
-                    AppNotification(
-                      id: DateTime.now().millisecondsSinceEpoch,
-                      packageName: "com.android.phone",
-                      title: 'Phone',
-                      appName: "Phone",
-                      body: "Your Phone Ringing..",
-                      timestamp: DateTime.now(),
-                      expiresAt: DateTime.now().add(const Duration(hours: 1)),
-                      colorValue: 0xFF0A192F,
-                      actions: const [],
-                    ).toMap(),
-                  );
-                },
-                icon: const Icon(Icons.arrow_circle_right_rounded),
-                label: const Text("See All"),
-                style: FilledButton.styleFrom(
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(borderRadius),
-                  ),
-                  backgroundColor: colorScheme.primary,
-                ),
-              ),
+
+              // TODO : Implement see all button in future with notification page
+              // FilledButton.icon(
+              //   onPressed: () {},
+              //   icon: const Icon(Icons.arrow_circle_right_rounded),
+              //   label: const Text("See All"),
+              //   style: FilledButton.styleFrom(
+              //     elevation: 0,
+              //     shape: RoundedRectangleBorder(
+              //       borderRadius: BorderRadius.circular(borderRadius),
+              //     ),
+              //     backgroundColor: colorScheme.primary,
+              //   ),
+              // ),
             ],
           ),
         ],

@@ -22,6 +22,9 @@ abstract class IConnectionManager {
   Future<void> startServer();
   Future<void> stopServer();
 
+  // pairing
+  Future<void> unpair();
+
   // Authorization
   Future<void> acceptConnection(String op);
   Future<void> rejectConnection(String op);
