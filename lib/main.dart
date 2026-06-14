@@ -1,13 +1,15 @@
+// Copyright (c) 2026 Kartik. Licensed under GPL-3.0. See LICENSE for details.
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:laptop_controller/core/config/app_router.dart';
-import 'package:laptop_controller/core/handler/provider/service_coordinator_provider.dart';
-import 'package:laptop_controller/core/notification/data/notification_service_impl.dart';
-import 'package:laptop_controller/core/notification/provider/notification_provider.dart';
-import 'package:laptop_controller/core/storage/provider/storage_service_provider.dart';
-import 'package:laptop_controller/pages/main_layout/main_layout.dart';
-import 'package:laptop_controller/pages/pairing_screen/pairing_screen.dart';
-import 'package:laptop_controller/theme/provider/theme_provider.dart';
+import 'package:syncos_linux/core/config/app_router.dart';
+import 'package:syncos_linux/core/handler/provider/service_coordinator_provider.dart';
+import 'package:syncos_linux/core/notification/data/notification_service_impl.dart';
+import 'package:syncos_linux/core/notification/provider/notification_provider.dart';
+import 'package:syncos_linux/core/storage/provider/storage_service_provider.dart';
+import 'package:syncos_linux/pages/main_layout/main_layout.dart';
+import 'package:syncos_linux/pages/pairing_screen/pairing_screen.dart';
+import 'package:syncos_linux/theme/provider/theme_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'theme/app_theme.dart';
 

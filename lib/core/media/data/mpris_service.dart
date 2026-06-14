@@ -1,11 +1,13 @@
+// Copyright (c) 2026 Kartik. Licensed under GPL-3.0. See LICENSE for details.
+
 import 'dart:io';
 import 'dart:convert';
 import 'package:dbus/dbus.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:laptop_controller/core/media/domain/i_media_notification.dart';
-import 'package:laptop_controller/features/media/provider/remote_media_state.dart';
-import 'package:laptop_controller/models/media_metadata.dart';
+import 'package:syncos_linux/core/media/domain/i_media_notification.dart';
+import 'package:syncos_linux/features/media/provider/remote_media_state.dart';
+import 'package:syncos_linux/models/media_metadata.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 class MprisService extends DBusObject implements IMediaNotification{

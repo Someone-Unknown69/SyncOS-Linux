@@ -1,13 +1,15 @@
+// Copyright (c) 2026 Kartik. Licensed under GPL-3.0. See LICENSE for details.
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:laptop_controller/core/network/domain/i_connection_manager.dart';
-import 'package:laptop_controller/core/network/provider/connection_provider.dart';
-import 'package:laptop_controller/features/file_transfer/provider/file_transfer_provider.dart';
-import 'package:laptop_controller/pages/home/widgets/battery_card.dart';
-import 'package:laptop_controller/pages/home/widgets/music_player.dart';
-import 'package:laptop_controller/pages/home/widgets/notifications.dart';
-import 'package:laptop_controller/pages/home/widgets/volume_card.dart';
-import 'package:laptop_controller/pages/pairing_screen/pairing_screen.dart';
+import 'package:syncos_linux/core/network/domain/i_connection_manager.dart';
+import 'package:syncos_linux/core/network/provider/connection_provider.dart';
+import 'package:syncos_linux/features/file_transfer/provider/file_transfer_provider.dart';
+import 'package:syncos_linux/pages/home/widgets/battery_card.dart';
+import 'package:syncos_linux/pages/home/widgets/music_player.dart';
+import 'package:syncos_linux/pages/home/widgets/notifications.dart';
+import 'package:syncos_linux/pages/home/widgets/volume_card.dart';
+import 'package:syncos_linux/pages/pairing_screen/pairing_screen.dart';
 import '../../models/dashboard_item.dart';
 import '../../theme/app_theme.dart';
 import 'widgets/connection_status.dart';

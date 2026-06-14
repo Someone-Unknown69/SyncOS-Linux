@@ -1,8 +1,10 @@
+// Copyright (c) 2026 Kartik. Licensed under GPL-3.0. See LICENSE for details.
+
 import 'dart:async';
-import 'package:laptop_controller/core/network/domain/i_connection_manager.dart';
-import 'package:laptop_controller/core/storage/data/storage_service.dart';
-import 'package:laptop_controller/features/notification/domain/i_remote_notification_service.dart';
-import 'package:laptop_controller/features/notification/domain/model/app_notification.dart';
+import 'package:syncos_linux/core/network/domain/i_connection_manager.dart';
+import 'package:syncos_linux/core/storage/data/storage_service.dart';
+import 'package:syncos_linux/features/notification/domain/i_remote_notification_service.dart';
+import 'package:syncos_linux/features/notification/domain/model/app_notification.dart';
 
 class RemoteNotificationServiceImpl implements IRemoteNotificationService {
   final IConnectionManager _connectionManager;

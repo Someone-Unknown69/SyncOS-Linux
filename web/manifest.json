@@ -1,6 +1,6 @@
 {
-    "name": "laptop_controller",
-    "short_name": "laptop_controller",
+    "name": "syncos_linux",
+    "short_name": "syncos_linux",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

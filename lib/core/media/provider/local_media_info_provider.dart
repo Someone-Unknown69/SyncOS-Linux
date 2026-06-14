@@ -1,6 +1,8 @@
+// Copyright (c) 2026 Kartik. Licensed under GPL-3.0. See LICENSE for details.
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:laptop_controller/core/media/domain/i_local_media_info.dart';
-import 'package:laptop_controller/models/media_metadata.dart';
+import 'package:syncos_linux/core/media/domain/i_local_media_info.dart';
+import 'package:syncos_linux/models/media_metadata.dart';
 import '../data/mediapoller.dart';
 
 final localMediaInfoProvider = Provider<ILocalMediaInfo>((ref) {

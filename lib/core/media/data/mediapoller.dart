@@ -1,3 +1,5 @@
+// Copyright (c) 2026 Kartik. Licensed under GPL-3.0. See LICENSE for details.
+
 import 'dart:async';
 import 'package:dbus/dbus.dart';
 import 'package:flutter/foundation.dart';
@@ -5,8 +7,8 @@ import 'dart:io';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:image/image.dart' as img;
-import 'package:laptop_controller/core/media/domain/i_local_media_info.dart';
-import 'package:laptop_controller/models/media_metadata.dart';
+import 'package:syncos_linux/core/media/domain/i_local_media_info.dart';
+import 'package:syncos_linux/models/media_metadata.dart';
 
 
 // TODO : REMOVE THE CACHING MECHANISM FROM HERE, IT IS MANAGED IN UPPER LAYER

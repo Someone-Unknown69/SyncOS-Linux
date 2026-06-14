@@ -1,7 +1,9 @@
+// Copyright (c) 2026 Kartik. Licensed under GPL-3.0. See LICENSE for details.
+
 import 'dart:async';
-import 'package:laptop_controller/core/media/domain/i_local_media_info.dart';
-import 'package:laptop_controller/core/network/domain/i_connection_manager.dart';
-import 'package:laptop_controller/models/media_metadata.dart';
+import 'package:syncos_linux/core/media/domain/i_local_media_info.dart';
+import 'package:syncos_linux/core/network/domain/i_connection_manager.dart';
+import 'package:syncos_linux/models/media_metadata.dart';
 import 'package:flutter/foundation.dart';
 
 class _MusicInfoCache {

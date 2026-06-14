@@ -1,3 +1,5 @@
+// Copyright (c) 2026 Kartik. Licensed under GPL-3.0. See LICENSE for details.
+
 abstract interface class IStorageService {
   /// Writes any type of data to a key
   Future<void> write<T>(String key, T value);

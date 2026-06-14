@@ -1,6 +1,8 @@
+// Copyright (c) 2026 Kartik. Licensed under GPL-3.0. See LICENSE for details.
+
 import 'package:flutter/material.dart';
 import 'package:json_annotation/json_annotation.dart';
-import 'package:laptop_controller/core/misc/color_converter.dart';
+import 'package:syncos_linux/core/misc/color_converter.dart';
 
 part 'app_settings.g.dart';
 

@@ -1,9 +1,11 @@
+// Copyright (c) 2026 Kartik. Licensed under GPL-3.0. See LICENSE for details.
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:laptop_controller/core/network/domain/connection_config.dart';
-import 'package:laptop_controller/core/network/domain/i_connection_manager.dart';
-import 'package:laptop_controller/core/network/provider/connection_provider.dart';
-import 'package:laptop_controller/theme/app_theme.dart';
+import 'package:syncos_linux/core/network/domain/connection_config.dart';
+import 'package:syncos_linux/core/network/domain/i_connection_manager.dart';
+import 'package:syncos_linux/core/network/provider/connection_provider.dart';
+import 'package:syncos_linux/theme/app_theme.dart';
 
 class ConnectionDetailsCard extends ConsumerWidget {
   const ConnectionDetailsCard({super.key});

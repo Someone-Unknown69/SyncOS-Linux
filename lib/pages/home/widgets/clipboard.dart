@@ -1,7 +1,9 @@
+// Copyright (c) 2026 Kartik. Licensed under GPL-3.0. See LICENSE for details.
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:laptop_controller/features/clipboard/provider/remote_clipboard_notifier.dart';
+import 'package:syncos_linux/features/clipboard/provider/remote_clipboard_notifier.dart';
 import '../../../theme/app_theme.dart';
 
 class ClipboardWidget extends ConsumerStatefulWidget {

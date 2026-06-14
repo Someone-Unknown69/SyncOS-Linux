@@ -1,7 +1,9 @@
+// Copyright (c) 2026 Kartik. Licensed under GPL-3.0. See LICENSE for details.
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:laptop_controller/core/hardware/provider/hardware_providers.dart';
-import 'package:laptop_controller/core/network/domain/connection_config.dart';
-import 'package:laptop_controller/core/storage/provider/storage_service_provider.dart';
+import 'package:syncos_linux/core/hardware/provider/hardware_providers.dart';
+import 'package:syncos_linux/core/network/domain/connection_config.dart';
+import 'package:syncos_linux/core/storage/provider/storage_service_provider.dart';
 import '../domain/i_connection_manager.dart';
 import '../data/socket_connection_manager.dart';
 

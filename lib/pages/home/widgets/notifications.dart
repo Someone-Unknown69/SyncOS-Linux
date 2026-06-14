@@ -1,9 +1,11 @@
+// Copyright (c) 2026 Kartik. Licensed under GPL-3.0. See LICENSE for details.
+
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../theme/app_theme.dart';
-import 'package:laptop_controller/features/notification/domain/model/app_notification.dart';
-import 'package:laptop_controller/features/notification/provider/remote_notification_service_provider.dart';
+import 'package:syncos_linux/features/notification/domain/model/app_notification.dart';
+import 'package:syncos_linux/features/notification/provider/remote_notification_service_provider.dart';
 
 class Notifications extends ConsumerStatefulWidget {
   const Notifications({super.key});

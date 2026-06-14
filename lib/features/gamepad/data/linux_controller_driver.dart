@@ -1,7 +1,9 @@
+// Copyright (c) 2026 Kartik. Licensed under GPL-3.0. See LICENSE for details.
+
 import 'dart:ffi';
 import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
-import 'package:laptop_controller/features/gamepad/domain/i_controller_service.dart';
+import 'package:syncos_linux/features/gamepad/domain/i_controller_service.dart';
 
 // Following this is the code for simulating keypresses by writing the structs in /dev/uinput
 // It writers the key struct 2 times (pressed and released) 

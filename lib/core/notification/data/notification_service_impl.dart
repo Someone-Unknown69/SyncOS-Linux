@@ -1,6 +1,8 @@
+// Copyright (c) 2026 Kartik. Licensed under GPL-3.0. See LICENSE for details.
+
 import 'dart:async';
 import 'package:dbus/dbus.dart';
-import 'package:laptop_controller/core/notification/domain/i_notification_service.dart';
+import 'package:syncos_linux/core/notification/domain/i_notification_service.dart';
 
 // IMPORTANT : This entirely works on DBUS interface
 // init() and dismissNotification() are "No-Op" implementation. In Linux there's no such thing as dissmis or init a notification

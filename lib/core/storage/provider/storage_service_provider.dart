@@ -1,8 +1,10 @@
+// Copyright (c) 2026 Kartik. Licensed under GPL-3.0. See LICENSE for details.
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:laptop_controller/core/storage/data/database_storage.dart';
-import 'package:laptop_controller/core/storage/data/prefs_storage.dart';
-import 'package:laptop_controller/core/storage/data/secure_storage.dart';
-import 'package:laptop_controller/core/storage/data/storage_service.dart';
+import 'package:syncos_linux/core/storage/data/database_storage.dart';
+import 'package:syncos_linux/core/storage/data/prefs_storage.dart';
+import 'package:syncos_linux/core/storage/data/secure_storage.dart';
+import 'package:syncos_linux/core/storage/data/storage_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // Provider for the underlying SharedPreferences instance

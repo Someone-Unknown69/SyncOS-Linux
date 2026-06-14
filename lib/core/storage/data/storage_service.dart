@@ -1,9 +1,11 @@
+// Copyright (c) 2026 Kartik. Licensed under GPL-3.0. See LICENSE for details.
+
 import 'dart:async';
 import 'dart:convert';
-import 'package:laptop_controller/core/network/domain/connection_config.dart';
-import 'package:laptop_controller/core/storage/domain/i_storage_service.dart';
-import 'package:laptop_controller/core/storage/domain/models/app_settings.dart';
-import 'package:laptop_controller/core/storage/domain/models/storage_keys.dart';
+import 'package:syncos_linux/core/network/domain/connection_config.dart';
+import 'package:syncos_linux/core/storage/domain/i_storage_service.dart';
+import 'package:syncos_linux/core/storage/domain/models/app_settings.dart';
+import 'package:syncos_linux/core/storage/domain/models/storage_keys.dart';
 
 /// ------------------------      StorageService          ----------------------------
 /// This class acts as the centralized "Gatekeeper" for all persistent data in the app.

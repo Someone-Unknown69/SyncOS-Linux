@@ -1,6 +1,8 @@
+// Copyright (c) 2026 Kartik. Licensed under GPL-3.0. See LICENSE for details.
+
 import 'package:flutter/material.dart';
-import 'package:laptop_controller/pages/home/home_screen.dart';
-import 'package:laptop_controller/pages/settings/settings_screen.dart';
+import 'package:syncos_linux/pages/home/home_screen.dart';
+import 'package:syncos_linux/pages/settings/settings_screen.dart';
 import 'ui/sidebar.dart'; 
 class MainLayout extends StatefulWidget {
   const MainLayout({super.key});

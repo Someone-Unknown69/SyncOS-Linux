@@ -1,7 +1,9 @@
+// Copyright (c) 2026 Kartik. Licensed under GPL-3.0. See LICENSE for details.
+
 import 'dart:async';
-import 'package:laptop_controller/core/network/domain/i_connection_manager.dart';
-import 'package:laptop_controller/core/hardware/domain/i_battery_info.dart';
-import 'package:laptop_controller/core/hardware/domain/i_device_info.dart';
+import 'package:syncos_linux/core/network/domain/i_connection_manager.dart';
+import 'package:syncos_linux/core/hardware/domain/i_battery_info.dart';
+import 'package:syncos_linux/core/hardware/domain/i_device_info.dart';
 import '../domain/i_local_battery_sender.dart';
 
 

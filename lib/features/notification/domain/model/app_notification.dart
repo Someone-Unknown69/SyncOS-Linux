@@ -1,5 +1,7 @@
+// Copyright (c) 2026 Kartik. Licensed under GPL-3.0. See LICENSE for details.
+
 import 'package:flutter/material.dart';
-import 'package:laptop_controller/features/notification/domain/model/notification_action.dart';
+import 'package:syncos_linux/features/notification/domain/model/notification_action.dart';
 
 @immutable
 class AppNotification {

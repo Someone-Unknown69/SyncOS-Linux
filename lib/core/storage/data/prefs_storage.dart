@@ -1,6 +1,8 @@
+// Copyright (c) 2026 Kartik. Licensed under GPL-3.0. See LICENSE for details.
+
 import 'dart:convert';
 
-import 'package:laptop_controller/core/storage/domain/i_storage_service.dart';
+import 'package:syncos_linux/core/storage/domain/i_storage_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class PrefsStorage implements IStorageService{

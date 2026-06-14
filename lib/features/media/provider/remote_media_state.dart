@@ -1,6 +1,8 @@
-import 'package:laptop_controller/core/media/provider/media_notification_provider.dart';
-import 'package:laptop_controller/core/network/provider/connection_provider.dart';
-import 'package:laptop_controller/models/media_metadata.dart';
+// Copyright (c) 2026 Kartik. Licensed under GPL-3.0. See LICENSE for details.
+
+import 'package:syncos_linux/core/media/provider/media_notification_provider.dart';
+import 'package:syncos_linux/core/network/provider/connection_provider.dart';
+import 'package:syncos_linux/models/media_metadata.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:flutter/foundation.dart';
 

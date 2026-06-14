@@ -1,3 +1,5 @@
+// Copyright (c) 2026 Kartik. Licensed under GPL-3.0. See LICENSE for details.
+
 import 'dart:io';
 import 'dart:async';
 import '../domain/i_file_transfer_manager.dart';

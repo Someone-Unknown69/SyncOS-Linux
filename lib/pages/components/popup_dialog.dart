@@ -1,5 +1,7 @@
+// Copyright (c) 2026 Kartik. Licensed under GPL-3.0. See LICENSE for details.
+
 import 'package:flutter/material.dart';
-import 'package:laptop_controller/theme/app_theme.dart';
+import 'package:syncos_linux/theme/app_theme.dart';
 
 class AppPopupDialog extends StatelessWidget {
   final String title;

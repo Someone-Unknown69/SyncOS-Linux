@@ -1,3 +1,5 @@
+// Copyright (c) 2026 Kartik. Licensed under GPL-3.0. See LICENSE for details.
+
 class StorageKeys {
   // auth key
   static const String pairingToken = 'auth_token';

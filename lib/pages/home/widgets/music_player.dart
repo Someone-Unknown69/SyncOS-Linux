@@ -1,7 +1,9 @@
+// Copyright (c) 2026 Kartik. Licensed under GPL-3.0. See LICENSE for details.
+
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:laptop_controller/features/media/provider/remote_media_state.dart';
+import 'package:syncos_linux/features/media/provider/remote_media_state.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:io';

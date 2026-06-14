@@ -1,3 +1,5 @@
+// Copyright (c) 2026 Kartik. Licensed under GPL-3.0. See LICENSE for details.
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -5,10 +7,10 @@ import 'dart:math';
 import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
-import 'package:laptop_controller/core/hardware/domain/i_device_info.dart';
-import 'package:laptop_controller/core/storage/data/storage_service.dart';
-import 'package:laptop_controller/main.dart';
-import 'package:laptop_controller/pages/components/popup_dialog.dart';
+import 'package:syncos_linux/core/hardware/domain/i_device_info.dart';
+import 'package:syncos_linux/core/storage/data/storage_service.dart';
+import 'package:syncos_linux/main.dart';
+import 'package:syncos_linux/pages/components/popup_dialog.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 
 import '../domain/i_connection_manager.dart';

@@ -1,5 +1,7 @@
+// Copyright (c) 2026 Kartik. Licensed under GPL-3.0. See LICENSE for details.
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:laptop_controller/core/storage/provider/file_service_provider.dart';
+import 'package:syncos_linux/core/storage/provider/file_service_provider.dart';
 import '../data/file_transfer_service.dart';
 import '../../../core/network/provider/connection_provider.dart';
 import '../../../core/notification/provider/notification_provider.dart';

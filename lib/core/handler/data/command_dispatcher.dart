@@ -1,18 +1,20 @@
+// Copyright (c) 2026 Kartik. Licensed under GPL-3.0. See LICENSE for details.
+
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:laptop_controller/core/utilities/domain/i_remote_command.dart';
-import 'package:laptop_controller/features/clipboard/provider/remote_clipboard_notifier.dart';
-import 'package:laptop_controller/features/gamepad/domain/i_controller_service.dart';
-import 'package:laptop_controller/features/media/data/local_media_sender.dart';
-import 'package:laptop_controller/features/media/provider/remote_media_state.dart';
-import 'package:laptop_controller/features/notification/domain/i_remote_notification_service.dart';
+import 'package:syncos_linux/core/utilities/domain/i_remote_command.dart';
+import 'package:syncos_linux/features/clipboard/provider/remote_clipboard_notifier.dart';
+import 'package:syncos_linux/features/gamepad/domain/i_controller_service.dart';
+import 'package:syncos_linux/features/media/data/local_media_sender.dart';
+import 'package:syncos_linux/features/media/provider/remote_media_state.dart';
+import 'package:syncos_linux/features/notification/domain/i_remote_notification_service.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-import 'package:laptop_controller/core/network/domain/i_connection_manager.dart';
-import 'package:laptop_controller/features/device_info/provider/remote_device_info_state.dart';
-import 'package:laptop_controller/features/battery/provider/remote_battery_state.dart';
-import 'package:laptop_controller/features/file_transfer/data/file_transfer_service.dart';
+import 'package:syncos_linux/core/network/domain/i_connection_manager.dart';
+import 'package:syncos_linux/features/device_info/provider/remote_device_info_state.dart';
+import 'package:syncos_linux/features/battery/provider/remote_battery_state.dart';
+import 'package:syncos_linux/features/file_transfer/data/file_transfer_service.dart';
 
 class CommandDispatcher {
   final Ref ref;

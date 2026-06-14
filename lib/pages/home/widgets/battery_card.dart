@@ -1,6 +1,8 @@
+// Copyright (c) 2026 Kartik. Licensed under GPL-3.0. See LICENSE for details.
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:laptop_controller/features/battery/provider/remote_battery_state.dart';
+import 'package:syncos_linux/features/battery/provider/remote_battery_state.dart';
 import '../../../theme/app_theme.dart';
 
 

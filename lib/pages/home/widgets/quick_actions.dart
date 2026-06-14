@@ -1,3 +1,5 @@
+// Copyright (c) 2026 Kartik. Licensed under GPL-3.0. See LICENSE for details.
+
 import 'package:flutter/material.dart';
 import '../../../models/dashboard_item.dart';
 import '../../../theme/app_theme.dart';

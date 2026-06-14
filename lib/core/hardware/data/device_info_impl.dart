@@ -1,6 +1,8 @@
+// Copyright (c) 2026 Kartik. Licensed under GPL-3.0. See LICENSE for details.
+
 import 'dart:async';
 import 'dart:io';
-import 'package:laptop_controller/core/hardware/domain/i_device_info.dart';
+import 'package:syncos_linux/core/hardware/domain/i_device_info.dart';
 
 class DeviceInfoImpl implements IDeviceInfo {
   String _deviceName = 'Unknown';

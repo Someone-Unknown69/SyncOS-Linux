@@ -1,7 +1,9 @@
+// Copyright (c) 2026 Kartik. Licensed under GPL-3.0. See LICENSE for details.
+
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:laptop_controller/core/utilities/domain/i_remote_command.dart';
+import 'package:syncos_linux/core/utilities/domain/i_remote_command.dart';
 
 class LinuxCommand implements IRemoteCommand{
   

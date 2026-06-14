@@ -1,4 +1,6 @@
-import 'package:laptop_controller/features/notification/domain/model/app_notification.dart';
+// Copyright (c) 2026 Kartik. Licensed under GPL-3.0. See LICENSE for details.
+
+import 'package:syncos_linux/features/notification/domain/model/app_notification.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 abstract class IRemoteNotificationService {

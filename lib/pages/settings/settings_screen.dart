@@ -1,16 +1,18 @@
+// Copyright (c) 2026 Kartik. Licensed under GPL-3.0. See LICENSE for details.
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:laptop_controller/core/config/app_router.dart';
-import 'package:laptop_controller/core/config/app_routes.dart';
-import 'package:laptop_controller/core/network/domain/i_connection_manager.dart';
-import 'package:laptop_controller/core/network/provider/connection_provider.dart';
-import 'package:laptop_controller/core/storage/provider/storage_service_provider.dart';
-import 'package:laptop_controller/pages/components/base_page.dart';
-import 'package:laptop_controller/pages/components/popup_dialog.dart';
-import 'package:laptop_controller/pages/components/settings_tile.dart';
-import 'package:laptop_controller/pages/settings/widgets/color_picker.dart';
-import 'package:laptop_controller/pages/settings/widgets/connection_details.dart';
-import 'package:laptop_controller/theme/provider/theme_provider.dart';
+import 'package:syncos_linux/core/config/app_router.dart';
+import 'package:syncos_linux/core/config/app_routes.dart';
+import 'package:syncos_linux/core/network/domain/i_connection_manager.dart';
+import 'package:syncos_linux/core/network/provider/connection_provider.dart';
+import 'package:syncos_linux/core/storage/provider/storage_service_provider.dart';
+import 'package:syncos_linux/pages/components/base_page.dart';
+import 'package:syncos_linux/pages/components/popup_dialog.dart';
+import 'package:syncos_linux/pages/components/settings_tile.dart';
+import 'package:syncos_linux/pages/settings/widgets/color_picker.dart';
+import 'package:syncos_linux/pages/settings/widgets/connection_details.dart';
+import 'package:syncos_linux/theme/provider/theme_provider.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});

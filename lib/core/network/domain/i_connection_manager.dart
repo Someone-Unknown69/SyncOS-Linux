@@ -1,3 +1,5 @@
+// Copyright (c) 2026 Kartik. Licensed under GPL-3.0. See LICENSE for details.
+
 import '../domain/connection_config.dart';
 
 // Domain interface for connection manager 

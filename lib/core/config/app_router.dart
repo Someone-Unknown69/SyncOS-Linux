@@ -1,9 +1,11 @@
+// Copyright (c) 2026 Kartik. Licensed under GPL-3.0. See LICENSE for details.
+
 import 'package:flutter/material.dart';
-import 'package:laptop_controller/pages/pairing_screen/pairing_screen.dart';
-import 'package:laptop_controller/pages/settings/settings_screen.dart';
+import 'package:syncos_linux/pages/pairing_screen/pairing_screen.dart';
+import 'package:syncos_linux/pages/settings/settings_screen.dart';
 import 'app_routes.dart';
 
-import 'package:laptop_controller/pages/home/home_screen.dart';
+import 'package:syncos_linux/pages/home/home_screen.dart';
 
 class AppRouter {
   static bool _isNavigating = false;

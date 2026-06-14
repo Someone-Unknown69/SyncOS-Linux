@@ -1,8 +1,10 @@
+// Copyright (c) 2026 Kartik. Licensed under GPL-3.0. See LICENSE for details.
+
 import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:laptop_controller/core/storage/domain/i_file_service.dart';
+import 'package:syncos_linux/core/storage/domain/i_file_service.dart';
 
 class FileServiceImpl implements IFileService {
   @override

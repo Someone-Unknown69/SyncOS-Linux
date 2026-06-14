@@ -1,10 +1,12 @@
+// Copyright (c) 2026 Kartik. Licensed under GPL-3.0. See LICENSE for details.
+
 import 'dart:async';
-import 'package:laptop_controller/core/network/domain/i_connection_manager.dart';
-import 'package:laptop_controller/features/battery/domain/i_local_battery_sender.dart';
-import 'package:laptop_controller/core/handler/data/command_dispatcher.dart';
+import 'package:syncos_linux/core/network/domain/i_connection_manager.dart';
+import 'package:syncos_linux/features/battery/domain/i_local_battery_sender.dart';
+import 'package:syncos_linux/core/handler/data/command_dispatcher.dart';
 import 'package:flutter/foundation.dart';
-import 'package:laptop_controller/features/clipboard/data/local_clipboard_sender.dart';
-import 'package:laptop_controller/features/media/data/local_media_sender.dart';
+import 'package:syncos_linux/features/clipboard/data/local_clipboard_sender.dart';
+import 'package:syncos_linux/features/media/data/local_media_sender.dart';
 
 class ServiceCoordinator {
   final CommandDispatcher _commandDispatcher;

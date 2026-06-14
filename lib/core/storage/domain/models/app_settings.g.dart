@@ -1,3 +1,5 @@
+// Copyright (c) 2026 Kartik. Licensed under GPL-3.0. See LICENSE for details.
+
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
 part of 'app_settings.dart';
