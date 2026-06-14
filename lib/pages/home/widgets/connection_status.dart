@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:laptop_controller/core/network/provider/connection_provider.dart';
 import '../../../theme/app_theme.dart';
 
 class StatusNotConnected extends ConsumerWidget {
@@ -123,7 +122,6 @@ class StatusConnected extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-
     return Padding(
       padding: EdgeInsets.all(AppTheme.padding),
       child: Column(
@@ -134,24 +132,13 @@ class StatusConnected extends ConsumerWidget {
             children: [
               Text(
                 "Welcome back!", 
-                style: TextStyle(fontSize: 30 ,fontWeight: FontWeight.w600)
-              ),
-
-              FilledButton.icon(
-                onPressed: () async {
-                  ref.read(connectionManagerProvider).unpair();
-                },
-                icon: const Icon(Icons.power_off),
-                label: const Text("Unpair"),
-                style: FilledButton.styleFrom(
-                  elevation: 0, 
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppTheme.borderRadius),
-                  ),
-                  backgroundColor: Colors.red,
-                  foregroundColor: colorScheme.surfaceContainerHighest,
+                style: theme.textTheme.headlineMedium?.copyWith( // Inherit proper text scale styles
+                  fontWeight: FontWeight.w600,
+                  color: colorScheme.primary, // Directly assign the text color here
                 ),
               ),
+
+              // TODO : Add a ping button
             ],
           ),
 

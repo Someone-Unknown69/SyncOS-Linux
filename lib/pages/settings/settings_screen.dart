@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:laptop_controller/core/config/app_router.dart';
+import 'package:laptop_controller/core/config/app_routes.dart';
+import 'package:laptop_controller/core/network/domain/i_connection_manager.dart';
+import 'package:laptop_controller/core/network/provider/connection_provider.dart';
+import 'package:laptop_controller/core/storage/provider/storage_service_provider.dart';
 import 'package:laptop_controller/pages/components/base_page.dart';
+import 'package:laptop_controller/pages/components/popup_dialog.dart';
 import 'package:laptop_controller/pages/components/settings_tile.dart';
 import 'package:laptop_controller/pages/settings/widgets/color_picker.dart';
 import 'package:laptop_controller/pages/settings/widgets/connection_details.dart';
@@ -25,6 +31,48 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       children: [
         buildSectionHeader(context, 'Connection Details'),
         ConnectionDetailsCard(),
+
+        buildSettingsTile(
+          icon: Icons.qr_code_scanner_rounded,
+          title: 'Unpair Device',
+          subtitle:'Connect with new device',
+          onTap: () async {
+            final storage = ref.read(storageServiceProvider);
+            final isPaired = await storage.isPaired;
+            final asyncStatus = ref.watch(connectionStatusProvider);
+
+            if (!context.mounted) return;
+
+            if (isPaired) {
+              await showAppPopupDialog(
+                context,
+                title: 'Unpair Device',
+                subtitle: 
+                  (asyncStatus.value == ConnectionStatus.connected) ? 
+                  "This will remove the client and it's connection data" :
+                  "Device is disconnected from client, Note that If you are unpairing now then you have to unpair client explicitly" ,
+                
+                primaryButtonLabel: 'Unpair',
+                secondaryButtonLabel: 'Cancel',
+                onPrimaryPressed: () async {
+                  await ref.read(connectionManagerProvider).unpair();
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Device unpaired successfully.'),
+                      behavior: SnackBarBehavior.fixed,
+                    ),
+                  );
+                },
+              );
+            } else {
+              // This shall not be case anytime, but if it is then check the code 
+              // There must be something fishy
+              AppRouter.pushRoute(context, AppRoutes.pairingScreen);
+            }
+          },
+        ),
+
 
         buildSectionHeader(context, 'Preferences'),
         buildSettingsTile(

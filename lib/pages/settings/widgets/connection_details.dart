@@ -60,7 +60,7 @@ class ConnectionDetailsCard extends ConsumerWidget {
                   const SizedBox(height: 12),
                   
                   Text(
-                    isConnected ? "Mobile Controller" : "No Device Linked",
+                    isConnected ? 'Mobile' : "No Device Linked",
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
