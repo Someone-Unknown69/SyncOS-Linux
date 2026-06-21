@@ -1,17 +1,12 @@
 // Copyright (c) 2026 Kartik. Licensed under GPL-3.0. See LICENSE for details.
 
 import 'dart:async';
-import 'package:syncos_linux/models/media_metadata.dart';
+import 'package:syncos_linux/features/media/domain/models/media_info.dart';
 
-/// Domain interface
 abstract class ILocalMediaInfo {
   Stream<MediaInfo> get metadataStream;
-
   Future<void> start();
-
   void stop();
-
   void dispose();
-
   void control(Map<String, dynamic> args);
 }

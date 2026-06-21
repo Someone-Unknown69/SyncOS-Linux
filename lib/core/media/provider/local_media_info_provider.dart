@@ -2,7 +2,7 @@
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:syncos_linux/core/media/domain/i_local_media_info.dart';
-import 'package:syncos_linux/models/media_metadata.dart';
+import 'package:syncos_linux/features/media/domain/models/media_info.dart';
 import '../data/mediapoller.dart';
 
 final localMediaInfoProvider = Provider<ILocalMediaInfo>((ref) {

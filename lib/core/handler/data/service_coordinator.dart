@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Kartik. Licensed under GPL-3.0. See LICENSE for details.
 
 import 'dart:async';
+import 'package:syncos_linux/core/media/domain/i_media_notification.dart';
 import 'package:syncos_linux/core/network/domain/i_connection_manager.dart';
 import 'package:syncos_linux/features/battery/domain/i_local_battery_sender.dart';
 import 'package:syncos_linux/core/handler/data/command_dispatcher.dart';
@@ -10,14 +11,15 @@ import 'package:syncos_linux/features/media/data/local_media_sender.dart';
 
 class ServiceCoordinator {
   final CommandDispatcher _commandDispatcher;
-  
+
   // network manager
   final IConnectionManager _connectionManager;
-  
-  // services 
+
+  // services
   final IBatteryMonitorService _batteryMonitorService;
   final LocalMediaSender _mediaService;
   final LocalClipboardSender _clipboardSender;
+  final IMediaNotification _mediaNotification;
 
   StreamSubscription? _connectionSubscription;
 
@@ -27,16 +29,20 @@ class ServiceCoordinator {
     required LocalMediaSender mediaService,
     required CommandDispatcher commandDispatcher,
     required LocalClipboardSender clipboardService,
-  })  : _commandDispatcher = commandDispatcher,
-        _connectionManager = connectionManager,
-        _batteryMonitorService = batteryMonitorService,
-        _mediaService = mediaService,
-        _clipboardSender = clipboardService {
+    required IMediaNotification mediaNotification,
+  }) : _commandDispatcher = commandDispatcher,
+       _connectionManager = connectionManager,
+       _batteryMonitorService = batteryMonitorService,
+       _mediaService = mediaService,
+       _mediaNotification = mediaNotification,
+       _clipboardSender = clipboardService {
     _init();
   }
 
   void _init() {
-    _connectionSubscription = _connectionManager.connectionStatusStream.listen((status) async {
+    _connectionSubscription = _connectionManager.connectionStatusStream.listen((
+      status,
+    ) async {
       if (status == ConnectionStatus.connected) {
         await _startServices();
       } else {
@@ -58,15 +64,17 @@ class ServiceCoordinator {
   Future<void> _startServices() async {
     await _batteryMonitorService.start();
     await _mediaService.start();
-    _commandDispatcher.start();
+    await _mediaNotification.start();
     _clipboardSender.start();
+    _commandDispatcher.start();
   }
 
   void _stopServices() {
     _batteryMonitorService.stop();
     _mediaService.stop();
-    _commandDispatcher.stop();
     _clipboardSender.stop();
+    _mediaNotification.stop();
+    _commandDispatcher.stop();
   }
 
   void dispose() {

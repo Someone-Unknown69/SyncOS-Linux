@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Kartik. Licensed under GPL-3.0. See LICENSE for details.
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:syncos_linux/core/media/provider/media_notification_provider.dart';
 import 'package:syncos_linux/core/network/provider/connection_provider.dart';
 import 'package:syncos_linux/features/battery/provider/local_battery_sender_provider.dart';
 import 'package:syncos_linux/features/clipboard/provider/local_clipboard_sender_provider.dart';
@@ -14,6 +15,7 @@ final serviceCoordinatorProvider = Provider<ServiceCoordinator>((ref) {
   final mediaService = ref.watch(mediaSenderProvider);
   final commandDispatcher = ref.watch(commandDispatcherProvider);
   final clipboardService = ref.watch(localClipboardSenderProvider);
+  final mediaNotif = ref.watch(mediaNotificationProvider);
 
   final coordinator = ServiceCoordinator(
     connectionManager: connectionManager,
@@ -21,6 +23,7 @@ final serviceCoordinatorProvider = Provider<ServiceCoordinator>((ref) {
     mediaService: mediaService,
     commandDispatcher: commandDispatcher,
     clipboardService: clipboardService,
+    mediaNotification: mediaNotif,
   );
 
   ref.onDispose(() => coordinator.dispose());

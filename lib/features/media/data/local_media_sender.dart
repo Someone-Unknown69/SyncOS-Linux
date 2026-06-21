@@ -2,132 +2,83 @@
 
 import 'dart:async';
 import 'package:syncos_linux/core/media/domain/i_local_media_info.dart';
+import 'package:syncos_linux/core/misc/app_logging.dart';
 import 'package:syncos_linux/core/network/domain/i_connection_manager.dart';
-import 'package:syncos_linux/models/media_metadata.dart';
 import 'package:flutter/foundation.dart';
-
-class _MusicInfoCache {
-  Map<String, dynamic> lastSent = {};
-  int lastSentTime = 0;
-  String lastTrackIdentity = "";
-
-  void update(Map<String, dynamic> info, String trackIdentity) {
-    lastSent = info;
-    lastTrackIdentity = trackIdentity;
-    lastSentTime = DateTime.now().millisecondsSinceEpoch;
-  }
-}
+import 'package:syncos_linux/features/media/domain/models/media_info.dart';
 
 class LocalMediaSender {
   final IConnectionManager _connectionManager;
   final ILocalMediaInfo _localMediaInfo;
+
   StreamSubscription<MediaInfo>? _subscription;
 
-  final _MusicInfoCache _cache = _MusicInfoCache();
+  MediaInfo _mediaCache = MediaInfo.empty;
+  int _lastUpdateTime = DateTime.now().millisecondsSinceEpoch;
 
-  LocalMediaSender(
-    this._connectionManager,
-    this._localMediaInfo,
-  );
+  LocalMediaSender(this._connectionManager, this._localMediaInfo);
 
   Future<void> start() async {
     debugPrint("Subscription started. Listening to Poller");
     await _subscription?.cancel();
 
     _subscription = _localMediaInfo.metadataStream.listen((info) {
-      _processMap(info.toMap());
+      _processMap(info);
     });
 
     await _localMediaInfo.start();
   }
 
+  void _processMap(MediaInfo newMetadata) {
+    final int duration = (newMetadata.duration ?? 0);
+    if (duration <= 0 && newMetadata.isValid) return;
 
-  void _processMap(Map<String, dynamic> info) {
-    final bool isNewTrack = _isNewTrack(info);
-    final bool isStateChange = (_cache.lastSent['status']) != (info['status']);
-    final bool isSeek = _isSignificantSeek(info);
+    final bool isNewTrack = newMetadata.identity != _mediaCache.identity;
+    final changedInfo = newMetadata.calculateDeltaObject(_mediaCache);
 
-    // If last art was null / NA and new art is available
-    final String? lastArt = _cache.lastSent['albumArt'] as String?;
-    final String? newArt = info['albumArt'] as String?;
-    final bool isArtDelayed = (lastArt == null || lastArt == 'N/A') && (newArt != null && newArt != 'N/A');
-
-    // If it's a new track, send Song Change. 
-    // If not, but state changed, send State Change.
-    // If neither, but seeked, send State Change.
-    
-    debugPrint("$isNewTrack && $isArtDelayed");
-
-    if (isNewTrack || isArtDelayed) {
-      debugPrint('[Media Service] Song Change');
-      _sendSongChange(info);
-    } else if (isStateChange || isSeek) {
-      debugPrint('[Media Service] State/Seek Change');
-      _sendStateChange(info);
-      _cache.update(info, _cache.lastTrackIdentity); 
+    if (changedInfo.toMap().isEmpty) {
+      return;
     }
+
+    if (isNewTrack) {
+      // Reset the cache media info
+      _mediaCache = MediaInfo.empty;
+    } else {
+      if (changedInfo.position != null &&
+          changedInfo.title == null &&
+          changedInfo.artist == null &&
+          changedInfo.status == null) {
+        final int newPos = changedInfo.position!;
+
+        // If the jump is less than or equal to 5000 milliseconds (5 seconds), skip sending
+        if (_isNotSignificantChange(newPos)) {
+          return;
+        }
+      }
+    }
+
+    _mediaCache = _mediaCache.mergeWith(newMetadata);
+
+    logDebug('Media Cache', 'Sending payload : ${changedInfo.toMap()}');
+    _sendChange(changedInfo);
   }
 
-  bool _isNewTrack(Map<String, dynamic> info) {
-    final last = _cache.lastSent;
-    return last['title'] != info['title'] ||
-          last['artist'] != info['artist'] ||
-          last['album'] != info['album'];
+  bool _isNotSignificantChange(int newPos) {
+    final int oldPos = _mediaCache.position ?? 0;
+    final int now = DateTime.now().millisecondsSinceEpoch;
+    final int elapsed = now - _lastUpdateTime;
+    final int predictedPos = (_mediaCache.status == true)
+        ? (oldPos + elapsed)
+        : oldPos;
+    return (predictedPos - newPos).abs() <= 2000;
   }
 
-  bool _isSignificantSeek(Map<String, dynamic> info) {
-    if (_cache.lastSent.isEmpty) return false;
-    final lastPosition = (_cache.lastSent['position'] as int?) ?? 0;
-    final nowPosition = (info['position'] as int?) ?? 0;
-    
-    final nowTime = DateTime.now().millisecondsSinceEpoch;
-    final expectedPosition = (_cache.lastSent['status'] == 'Playing') 
-        ? lastPosition + (nowTime - _cache.lastSentTime)
-        : lastPosition;
-
-    return (nowPosition - expectedPosition).abs() > 5000;
-  }
-
-  void _sendSongChange(Map<String, dynamic> info) {
-    final metadata = MediaInfo(
-      status: info['status'] ?? 'Unknown',
-      title: info['title'] ?? 'Unknown',
-      album: info['album'] ?? 'Unknown',
-      artist: info['artist'] ?? 'Unknown Artist',
-      duration: ((info['duration'] as int?) ?? 0),
-      position: ((info['position'] as int?) ?? 0),
-      albumArtBase64: info['albumArt'] as String? ?? 'N/A',
-    );
-
-    final payload = metadata.toMap();
-    payload['albumArt'] = metadata.albumArtBase64;
-
+  void _sendChange(MediaInfo metadata) async {
+    final payload = await metadata.toPayload();
+    _lastUpdateTime = DateTime.now().millisecondsSinceEpoch;
     _connectionManager.send('music', 'update_metadata', payload);
-
-    final currentIdentity = "${metadata.title}-${metadata.artist}";
-    _cache.update(info, currentIdentity);
-
     return;
   }
-
-  void _sendStateChange(Map<String, dynamic> info) {
-    final metadata = MediaInfo(
-      status: info['status'] ?? 'Unknown',
-      title: info['title'] ?? 'Unknown',
-      album: info['album'] ?? 'Unknown',
-      artist: info['artist'] ?? 'Unknown Artist',
-      duration: ((info['duration'] as int?) ?? 0),
-      position: ((info['position'] as int?) ?? 0),
-      albumArtBase64: info['albumArt'] as String? ?? 'N/A',
-    );
-
-    final payload = metadata.toMap(includeArt: false);
-  
-    _connectionManager.send('music', 'update_metadata', payload);
-
-    return;
-  }
-
 
   void handleControlCommand(Map<String, dynamic> args) {
     _localMediaInfo.control(args);

@@ -7,6 +7,7 @@ import 'package:syncos_linux/core/utilities/provider/remote_command_provider.dar
 import 'package:syncos_linux/features/gamepad/provider/controller_service_provider.dart';
 import 'package:syncos_linux/features/media/provider/local_media_sender_provider.dart';
 import 'package:syncos_linux/features/file_transfer/provider/file_transfer_provider.dart';
+import 'package:syncos_linux/features/media/provider/remote_media_provider.dart';
 import 'package:syncos_linux/features/notification/provider/remote_notification_service_provider.dart';
 
 final commandDispatcherProvider = Provider<CommandDispatcher>((ref) {
@@ -14,9 +15,12 @@ final commandDispatcherProvider = Provider<CommandDispatcher>((ref) {
   final mediaSender = ref.watch(mediaSenderProvider);
   final fileTransferService = ref.read(fileTransferServiceProvider);
   final controllerService = ref.watch(controllerServiceProvider);
-  final remoteNotificationService = ref.watch(remoteNotificationServiceProvider);
+  final remoteNotificationService = ref.watch(
+    remoteNotificationServiceProvider,
+  );
   final remoteCommandService = ref.watch(remoteCommandProvider);
-  
+  final remoteMediaService = ref.watch(remoteMediaServiceProvider);
+
   return CommandDispatcher(
     ref,
     connectionManager,
@@ -25,5 +29,7 @@ final commandDispatcherProvider = Provider<CommandDispatcher>((ref) {
     controllerService,
     remoteNotificationService,
     remoteCommandService,
+    remoteMediaService,
   );
 });
+

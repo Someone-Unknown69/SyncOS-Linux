@@ -7,7 +7,8 @@ import 'package:syncos_linux/core/utilities/domain/i_remote_command.dart';
 import 'package:syncos_linux/features/clipboard/provider/remote_clipboard_notifier.dart';
 import 'package:syncos_linux/features/gamepad/domain/i_controller_service.dart';
 import 'package:syncos_linux/features/media/data/local_media_sender.dart';
-import 'package:syncos_linux/features/media/provider/remote_media_state.dart';
+import 'package:syncos_linux/features/media/data/remote_media_service.dart';
+import 'package:syncos_linux/features/media/domain/models/media_info.dart';
 import 'package:syncos_linux/features/notification/domain/i_remote_notification_service.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -24,25 +25,31 @@ class CommandDispatcher {
   final IControllerService _controllerService;
   final IRemoteNotificationService _remoteNotificationService;
   final IRemoteCommand _remoteCommand;
+  final RemoteMediaService _remoteMediaService;
 
   StreamSubscription<String>? _rawMessageSubscription;
   bool _isStarted = false;
 
+  Future<void> _musicSequence = Future.value();
+
   CommandDispatcher(
     this.ref,
-    this._connectionManager, 
+    this._connectionManager,
     this._mediaSender,
     this._fileTransferService,
     this._controllerService,
     this._remoteNotificationService,
     this._remoteCommand,
+    this._remoteMediaService,
   );
 
   void start() {
     if (_isStarted) return;
     _isStarted = true;
 
-    _rawMessageSubscription = _connectionManager.rawMessageStream.listen((rawMessage) {
+    _rawMessageSubscription = _connectionManager.rawMessageStream.listen((
+      rawMessage,
+    ) async {
       final Map<String, dynamic> data = jsonDecode(rawMessage);
       final String operation = data['op'];
       final String action = data['action'] ?? "N/A";
@@ -50,32 +57,36 @@ class CommandDispatcher {
 
       debugPrint('[Dispatcher] : Recieved $data');
 
-      switch(operation) {
+      switch (operation) {
         case 'music':
-          if(action == 'update_metadata') {
-            ref.read(musicProvider.notifier).updateMetadata(args);
+          if (action == 'update_metadata') {
+            _musicSequence = _musicSequence.then((_) async {
+              final payload = await MediaInfo.formPayload(args);
+              await _remoteMediaService.updateMedia(payload);
+            });
           } else if (action == 'control') {
             _mediaSender.handleControlCommand(args);
           }
           break;
         case 'battery_info':
-          ref.read(batteryProvider.notifier).update(
-            args['level'] ?? 0, 
-            args['status'] ?? false
-          );
+          ref
+              .read(batteryProvider.notifier)
+              .update(args['level'] ?? 0, args['status'] ?? false);
           break;
         case 'device_info':
           ref.read(deviceInfoProvider.notifier).update(args['name']);
           break;
         case 'file_transfer':
-          if(action == 'receive') {
+          if (action == 'receive') {
             _fileTransferService.recieveFile(args);
-          } else if(action == 'send') {
-            // will add ability to send file requests in future 
-          } 
+          } else if (action == 'send') {
+            // will add ability to send file requests in future
+          }
           break;
         case 'controller':
-          if(action == 'start') {
+
+          /// TODO Clean this shit off
+          if (action == 'start') {
             _controllerService.init();
           } else if (action == 'stop') {
             _controllerService.dispose();
@@ -91,14 +102,16 @@ class CommandDispatcher {
             _controllerService.keyPress(action, args['button']);
           }
         case 'notification':
-          if(action == 'receive') {
+          if (action == 'receive') {
             _remoteNotificationService.saveNotification(args);
           }
         case 'clipboard':
-          ref.read(remoteClipboardProvider.notifier).addClipboardContent(args['content']);
+          ref
+              .read(remoteClipboardProvider.notifier)
+              .addClipboardContent(args['content']);
         case 'remote_command':
           _remoteCommand.runCommand(
-            args['command'], 
+            args['command'],
             (args['isRoot'] as bool?) ?? false,
           );
       }
