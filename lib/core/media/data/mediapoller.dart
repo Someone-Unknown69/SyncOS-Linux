@@ -78,7 +78,10 @@ class MediaPoller implements ILocalMediaInfo {
                 // Reset active player, the next PropertiesChanged event from a
                 // remaining Playing player will automatically claim the slot.
                 _activePlayerName = null;
-                debugPrint(
+                final invalidMetadata = MediaInfo(isValid: false);
+                _updateMetadata(invalidMetadata);
+                logDebug(
+                  'MediaPoller',
                   'Active player removed; waiting for next active player.',
                 );
               }

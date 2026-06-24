@@ -30,7 +30,6 @@ class MprisService extends DBusObject implements IMediaNotification {
   @override
   Future<void> start() async {
     _subscription = _remoteMediaService.mediaUpdates.listen((info) async {
-      logDebug('Media Notification', 'Received stream update');
       if (info.isValid && !isActiveNotif) {
         await _displayNotif();
         isActiveNotif = true;

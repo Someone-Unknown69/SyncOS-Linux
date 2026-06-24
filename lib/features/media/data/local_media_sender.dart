@@ -30,6 +30,7 @@ class LocalMediaSender {
   }
 
   void _processMap(MediaInfo newMetadata) {
+    logDebug('Recieved shit', '${newMetadata.toMap()}');
     final int duration = (newMetadata.duration ?? 0);
     if (duration <= 0 && newMetadata.isValid) return;
 
