@@ -167,6 +167,7 @@ class FileTransferService {
 
     await for (List<int> chunk in stream) {
       sink.add(chunk);
+      await sink.flush();
       receivedSize += chunk.length;
       final int progress = ((receivedSize / fileSize) * 100).round();
       

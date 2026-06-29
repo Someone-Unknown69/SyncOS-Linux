@@ -317,7 +317,7 @@ class SocketConnectionManager implements IConnectionManager{
     try {
       debugPrint('[Accept] sending accept with $args');
       final payload = jsonEncode({"op": op, "action": "accepted", "args": args});
-      _sendRaw(payload, compress: false);
+      _sendRaw(payload);
       
       
       debugPrint('[$op] Accepted sent');
@@ -363,7 +363,7 @@ class SocketConnectionManager implements IConnectionManager{
   @override
   Future<void> unpair() async {
     try {
-      await _sendRaw(jsonEncode({'op': 'unpair'}), compress: false);
+      await _sendRaw(jsonEncode({'op': 'unpair'}));
     } catch (e) {
       debugPrint('[Socket] Could not notify server of unpair, forcing local cleanup.');
     }
@@ -456,13 +456,8 @@ class SocketConnectionManager implements IConnectionManager{
           
           if (bytes.length >= 4 + length) {
             final payload = bytes.sublist(4, 4 + length);
-
-            final String jsonString;
-            if (payload.length >= 2 && payload[0] == 0x1F && payload[1] == 0x8B) {
-              jsonString = utf8.decode(gzip.decode(payload));
-            } else {
-              jsonString = utf8.decode(payload);
-            }
+            
+            final String jsonString = utf8.decode(payload);
 
             if(jsonString == 'PING') {
               debugPrint('Received : $jsonString');
@@ -581,10 +576,10 @@ class SocketConnectionManager implements IConnectionManager{
     }
   }
 
-  Future<void> _sendRaw(String msg, {bool compress = true}) async {
+  Future<void> _sendRaw(String msg) async {
     try {
       final rawBytes = utf8.encode(msg);
-      final List<int> payload = compress ? gzip.encode(rawBytes) : rawBytes;
+      final List<int> payload = rawBytes;
       final lengthBytes = ByteData(4)..setUint32(0, payload.length, Endian.big);
       final socket = _client ?? _pendingSocket!; 
       

@@ -1,7 +1,6 @@
 // Copyright (c) 2026 Kartik. Licensed under GPL-3.0. See LICENSE for details.
 
 import 'dart:async';
-import 'package:rxdart/rxdart.dart';
 import 'package:syncos_linux/core/misc/app_logging.dart';
 import 'package:syncos_linux/core/network/domain/i_connection_manager.dart';
 import 'package:syncos_linux/features/media/domain/models/media_info.dart';
