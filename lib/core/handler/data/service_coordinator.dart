@@ -46,7 +46,7 @@ class ServiceCoordinator {
       if (status == ConnectionStatus.connected) {
         await _startServices();
       } else {
-        _stopServices();
+        await _stopServices();
       }
     });
 
@@ -69,11 +69,11 @@ class ServiceCoordinator {
     _commandDispatcher.start();
   }
 
-  void _stopServices() {
+  Future<void> _stopServices() async {
     _batteryMonitorService.stop();
     _mediaService.stop();
     _clipboardSender.stop();
-    _mediaNotification.stop();
+    await _mediaNotification.stop();
     _commandDispatcher.stop();
   }
 

@@ -193,9 +193,11 @@ class LinuxControllerDriver implements IControllerService{
         final startTime = _pressTimestamps[keyName];
 
         if (startTime != null) {
-          // If released too fast, wait out the remaining time of the minimum frame threshold
-          while ((DateTime.now().millisecondsSinceEpoch - startTime) < _minHoldDurationMs) {
-            // Spin inline to hold the kernel event open precisely across the frame boundary
+          final elapsed = DateTime.now().millisecondsSinceEpoch - startTime;
+          final remainingTime = _minHoldDurationMs - elapsed;
+          
+          if (remainingTime > 0) {
+            await Future.delayed(Duration(milliseconds: remainingTime));
           }
           _pressTimestamps.remove(keyName);
         }
@@ -221,8 +223,8 @@ class LinuxControllerDriver implements IControllerService{
   
   @override
   void updateLeftStick(Map<String, dynamic> args) {
-    double x = (args['x'] as num).toDouble();
-    double y = (args['x'] as num).toDouble();
+    double x = (args['x'] as num?)?.toDouble() ?? 0.0;
+    double y = (args['y'] as num?)?.toDouble() ?? 0.0;
     // Convert -1.0 -> 1.0 down to integer ranges -128 -> 127
     int rawX = (x * 32767).round().clamp(-32768, 32767);
     int rawY = (-y * 32767).round().clamp(-32768, 32767);
@@ -260,6 +262,7 @@ class LinuxControllerDriver implements IControllerService{
 
   @override
   void dispose() {
+    if (fd == -1) return;
     debugPrint("Virtual keyboard disposed successfully");
     _ioctl(fd, 0x5502, 0); // UI_DEV_DESTROY: Tell kernel to remove the device
     _close(fd);            // Close the file handle

@@ -16,8 +16,8 @@ class RemoteMediaService {
 
   MediaInfo _mediaCache = MediaInfo.empty;
 
-  final BehaviorSubject<MediaInfo> _controller =
-      BehaviorSubject<MediaInfo>.seeded(MediaInfo.empty);
+  final StreamController<MediaInfo> _controller =
+      StreamController<MediaInfo>.broadcast();
 
   StreamSubscription? _bgServiceSubscription;
 
@@ -75,6 +75,12 @@ class RemoteMediaService {
   }
 
   void _sendSeekChange(int position) {
+    final updatedMetadata = _mediaCache.copyWith(
+      isValid: _mediaCache.isValid,
+      position: position,
+    );
+    updateMedia(updatedMetadata);
+
     _connectionManager.send('music', 'control', {
       'method': 'seek',
       'position': position / 1000,

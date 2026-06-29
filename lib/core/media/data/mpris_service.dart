@@ -21,6 +21,8 @@ class MprisService extends DBusObject implements IMediaNotification {
   MediaInfo _currentMetadata = MediaInfo.empty;
 
   bool isActiveNotif = false;
+  bool _isRegisteredWithDbus = false; // tracking variable
+  bool _isRegistering = false; // Guard flag to prevent concurrent registration attempts
   Future<void>? _initFuture;
 
   // cache and pooling for time
@@ -29,17 +31,38 @@ class MprisService extends DBusObject implements IMediaNotification {
 
   @override
   Future<void> start() async {
+    // Ensure we don't duplicate subscriptions if start() is invoked multiple times
+    await _subscription?.cancel();
+
+    logDebug('Media Notification', 'Started service to listen');
+    if (!_isRegisteredWithDbus && !_isRegistering) {
+      _isRegistering = true;
+      try {
+        _client.registerObject(this);
+        _isRegisteredWithDbus = true;
+      } catch (e) {
+        logDebug('Media Notification', 'Failed to register object: $e');
+      } finally {
+        _isRegistering = false;
+      }
+    }
+
     _subscription = _remoteMediaService.mediaUpdates.listen((info) async {
+      bool isNewActivation = false;
       if (info.isValid && !isActiveNotif) {
-        await _displayNotif();
-        isActiveNotif = true;
+        isActiveNotif = true; 
+        isNewActivation = true;
       } else if (!info.isValid && isActiveNotif) {
-        await _removeNotif();
         isActiveNotif = false;
+        await _removeNotif();
       }
 
       if (isActiveNotif) {
-        _updateMetadata(info);
+        await _updateMetadata(info);
+      }
+
+      if (isNewActivation) {
+        await _displayNotif();
       }
     });
     logDebug('Media Notification', 'Initialized');
@@ -52,19 +75,18 @@ class MprisService extends DBusObject implements IMediaNotification {
       try {
         await _client.releaseName(serviceName);
       } catch (e) {
-        debugPrint("[MPRIS] service release failed : $e");
+        logDebug('Media Notification', 'Service release failed while initating : $e');
       }
 
-      await _client.registerObject(this);
       await _client.requestName(serviceName);
-      isActiveNotif = true;
-      debugPrint("[MPRIS] Service initialized at $serviceName");
+      logDebug('Media Notification', 'Service initialized at $serviceName');
     }();
 
     try {
       await _initFuture;
     } catch (_) {
       _initFuture = null;
+      isActiveNotif = false;
       rethrow;
     }
   }
@@ -74,8 +96,6 @@ class MprisService extends DBusObject implements IMediaNotification {
     final artUri = meta.albumArtUri.toString();
     setPlaybackState(meta.status ?? false, (meta.position ?? 0) / 1000.0);
 
-    // MediaMetadata stores position/duration in seconds (as used by the UI).
-    // MPRIS requires microseconds, so we convert here
     final int durationUs = (meta.duration ?? 0) * 1000;
 
     final Map<DBusString, DBusVariant> dbusMetadata = {
@@ -113,7 +133,6 @@ class MprisService extends DBusObject implements IMediaNotification {
           DBusString('PlaybackStatus'): DBusVariant(
             DBusString((meta.status == true) ? 'Playing' : 'Paused'),
           ),
-
           DBusString('CanGoNext'): DBusVariant(DBusBoolean(true)),
           DBusString('CanGoPrevious'): DBusVariant(DBusBoolean(true)),
           DBusString('CanPlay'): DBusVariant(DBusBoolean(true)),
@@ -135,23 +154,10 @@ class MprisService extends DBusObject implements IMediaNotification {
       return DBusMethodSuccessResponse([]);
     }
 
-    if (methodCall.interface == 'org.freedesktop.DBus.Properties' &&
-        methodCall.name == 'Get') {
-      String interface = methodCall.values[0].asString();
-      String property = methodCall.values[1].asString();
-      return await getProperty(interface, property);
-    }
-
     if (methodCall.interface == 'org.mpris.MediaPlayer2.Player') {
       switch (methodCall.name) {
         case 'Play':
-          _remoteMediaService.playPauseToggle();
-          return DBusMethodSuccessResponse([]);
-
         case 'Pause':
-          _remoteMediaService.playPauseToggle();
-          return DBusMethodSuccessResponse([]);
-
         case 'PlayPause':
           _remoteMediaService.playPauseToggle();
           return DBusMethodSuccessResponse([]);
@@ -167,22 +173,76 @@ class MprisService extends DBusObject implements IMediaNotification {
         case 'Seek':
           final int offsetUs = methodCall.values[0].asInt64();
           final double currentPosSec = getCalculatedPositionSeconds();
-          final int targetPosSec = (currentPosSec + (offsetUs / 1000000))
-              .toInt();
-
-          _remoteMediaService.sendSeek(targetPosSec);
+          final int targetPosSec = (currentPosSec + (offsetUs / 1000000)).toInt();
+          _remoteMediaService.sendSeek(targetPosSec * 1000);
           return DBusMethodSuccessResponse([]);
 
         case 'SetPosition':
           final int positionUs = methodCall.values[1].asInt64();
           final int targetSeconds = (positionUs / 1000000).toInt();
-
-          _remoteMediaService.sendSeek(targetSeconds);
+          _remoteMediaService.sendSeek(targetSeconds * 1000);
           return DBusMethodSuccessResponse([]);
       }
     }
 
-    return DBusMethodErrorResponse.unknownMethod();
+    return super.handleMethodCall(methodCall);
+  }
+
+  @override
+  Future<DBusMethodResponse> getAllProperties(String interface) async {
+    if (interface == 'org.mpris.MediaPlayer2') {
+      return DBusMethodSuccessResponse([
+        DBusDict(DBusSignature('s'), DBusSignature('v'), {
+          DBusString('Identity'): DBusVariant(DBusString('Sync OS Media Player')),
+          DBusString('CanQuit'): DBusVariant(DBusBoolean(true)),
+          DBusString('DesktopEntry'): DBusVariant(DBusString('syncos-media-player')),
+        })
+      ]);
+    }
+
+    if (interface == 'org.mpris.MediaPlayer2.Player') {
+      final posUs = (getCalculatedPositionSeconds() * 1000000).toInt();
+      return DBusMethodSuccessResponse([
+        DBusDict(DBusSignature('s'), DBusSignature('v'), {
+          DBusString('Position'): DBusVariant(DBusInt64(posUs)),
+          DBusString('PlaybackStatus'): DBusVariant(
+            DBusString(((_currentMetadata.status ?? false) ? 'Playing' : 'Paused')),
+          ),
+          DBusString('CanGoNext'): DBusVariant(DBusBoolean(true)),
+          DBusString('CanGoPrevious'): DBusVariant(DBusBoolean(true)),
+          DBusString('CanPlay'): DBusVariant(DBusBoolean(true)),
+          DBusString('CanPause'): DBusVariant(DBusBoolean(true)),
+          DBusString('CanSeek'): DBusVariant(DBusBoolean(true)),
+          DBusString('Metadata'): DBusVariant(
+            DBusDict(DBusSignature('s'), DBusSignature('v'), {
+              DBusString('xesam:title'): DBusVariant(
+                DBusString(_currentMetadata.title ?? 'Unknown Title'),
+              ),
+              DBusString('xesam:artist'): DBusVariant(
+                DBusArray.string([_currentMetadata.artist ?? 'Unknown Artist']),
+              ),
+              DBusString('xesam:album'): DBusVariant(
+                DBusString(_currentMetadata.album ?? 'Unknown Album'),
+              ),
+              DBusString('mpris:trackid'): DBusVariant(
+                DBusObjectPath('/org/mpris/MediaPlayer2/Track/0'),
+              ),
+              DBusString('mpris:length'): DBusVariant(
+                DBusInt64((_currentMetadata.duration ?? 0) * 1000),
+              ),
+              if (_currentMetadata.albumArtUri != null)
+                DBusString('mpris:artUrl'): DBusVariant(
+                  DBusString(_currentMetadata.albumArtUri.toString()),
+                ),
+            }),
+          ),
+        })
+      ]);
+    }
+
+    return DBusMethodSuccessResponse([
+      DBusDict(DBusSignature('s'), DBusSignature('v'), {})
+    ]);
   }
 
   @override
@@ -206,9 +266,7 @@ class MprisService extends DBusObject implements IMediaNotification {
 
         case 'PlaybackStatus':
           return DBusGetPropertyResponse(
-            DBusString(
-              ((_currentMetadata.status ?? false) ? 'Playing' : 'Paused'),
-            ),
+            DBusString(((_currentMetadata.status ?? false) ? 'Playing' : 'Paused')),
           );
 
         case 'Metadata':
@@ -220,11 +278,14 @@ class MprisService extends DBusObject implements IMediaNotification {
               DBusString('xesam:artist'): DBusVariant(
                 DBusArray.string([_currentMetadata.artist ?? 'Unknown Artist']),
               ),
+              DBusString('xesam:album'): DBusVariant(
+                DBusString(_currentMetadata.album ?? 'Unknown Album'),
+              ),
               DBusString('mpris:trackid'): DBusVariant(
                 DBusObjectPath('/org/mpris/MediaPlayer2/Track/0'),
               ),
               DBusString('mpris:length'): DBusVariant(
-                DBusInt64((_currentMetadata.duration ?? 0) * 1000000),
+                DBusInt64((_currentMetadata.duration ?? 0) * 1000),
               ),
               if (_currentMetadata.albumArtUri != null)
                 DBusString('mpris:artUrl'): DBusVariant(
@@ -240,11 +301,7 @@ class MprisService extends DBusObject implements IMediaNotification {
     ]);
   }
 
-  Future<void> propertyChange(
-    String interface,
-    String property,
-    DBusValue value,
-  ) async {
+  Future<void> propertyChange(String interface, String property, DBusValue value) async {
     await _client.emitSignal(
       path: DBusObjectPath('/org/mpris/MediaPlayer2'),
       interface: 'org.freedesktop.DBus.Properties',
@@ -254,17 +311,13 @@ class MprisService extends DBusObject implements IMediaNotification {
         DBusDict(DBusSignature('s'), DBusSignature('v'), {
           DBusString(property): DBusVariant(value),
         }),
-
-        DBusArray.string(
-          [],
-        ), // Properties that were removed (always empty for simple changes)
+        DBusArray.string([]),
       ],
     );
   }
 
   Future<void> emitSeeked(double positionSeconds) async {
     final int positionUs = (positionSeconds * 1000000).toInt();
-
     await _client.emitSignal(
       path: DBusObjectPath('/org/mpris/MediaPlayer2'),
       interface: 'org.mpris.MediaPlayer2.Player',
@@ -278,52 +331,44 @@ class MprisService extends DBusObject implements IMediaNotification {
       _playbackStartedAt = DateTime.now();
       _basePositionSeconds = positionSeconds;
     } else {
-      // Calculate current position inline before resetting the timestamp
       if (_playbackStartedAt != null) {
-        final elapsed =
-            DateTime.now().difference(_playbackStartedAt!).inMicroseconds /
-            1000000;
+        final elapsed = DateTime.now().difference(_playbackStartedAt!).inMicroseconds / 1000000;
         _basePositionSeconds += elapsed;
       } else {
         _basePositionSeconds = positionSeconds;
       }
-
       _playbackStartedAt = null;
     }
   }
 
   double getCalculatedPositionSeconds() {
     if (_playbackStartedAt == null) return _basePositionSeconds;
-    final elapsed =
-        DateTime.now().difference(_playbackStartedAt!).inMicroseconds / 1000000;
+    final elapsed = DateTime.now().difference(_playbackStartedAt!).inMicroseconds / 1000000;
     return _basePositionSeconds + elapsed;
   }
 
   @override
-  void stop() {}
-
-  Future<void> _removeNotif() async {
-    debugPrint("[MPRIS] Music stopped Clearing Notification");
-
-    _currentMetadata = MediaInfo.empty;
+  Future<void> stop() async {
     _subscription?.cancel();
     _subscription = null;
+    await _removeNotif();
+  }
+
+  Future<void> _removeNotif() async {
+    logDebug('Media Notification', 'Music stopped. Clearing Notification');
+    _currentMetadata = MediaInfo.empty;
     _playbackStartedAt = null;
     _basePositionSeconds = 0.0;
 
     try {
-      if (isActiveNotif) {
-        await _client.releaseName(serviceName);
-        await _client.unregisterObject(this);
-
-        isActiveNotif = false;
-        _initFuture = null;
-        debugPrint("[MPRIS] Service successfully unregistered and closed.");
-      }
+      // Release name regardless of structural check to maintain a clean bus state
+      await _client.releaseName(serviceName);
     } catch (e) {
-      debugPrint(
-        "[MPRIS] Failed to cleanly unregister MPRIS service from D-Bus: $e",
-      );
+      logDebug('Media Notification', "Error while releasing the object $e");
+    } finally {
+      // Always reset state variables so a brand new track triggers initialization properly
+      _initFuture = null; 
+      isActiveNotif = false;
     }
   }
 }

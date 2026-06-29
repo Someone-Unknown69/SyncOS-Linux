@@ -55,7 +55,7 @@ class CommandDispatcher {
       final String action = data['action'] ?? "N/A";
       final Map<String, dynamic> args = data['args'];
 
-      debugPrint('[Dispatcher] : Recieved $data');
+      debugPrint('[Dispatcher] : Recieved ${data['op']} with ${data['action']}');
 
       switch (operation) {
         case 'music':
